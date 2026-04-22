@@ -19,6 +19,11 @@ def dispatch(
     module_name: str,
     storage_path: str,
 ) -> AsyncResult:
+    """Enqueue the Celery task for the given module and return its AsyncResult.
+
+    Raises ``ValueError`` if *module_name* is not in ``MODULE_TASKS``.
+    Valid values: ``"convert"``, ``"anonymize"``, ``"extract"``, ``"parse_invoice"``.
+    """
     task_fn = MODULE_TASKS.get(module_name)
     if task_fn is None:
         raise ValueError(f"Unknown module: {module_name}")

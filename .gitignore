@@ -36,6 +36,7 @@ env/
 
 # --- Local overrides ---
 Makefile.local
+.claude/settings.local.json
 
 # --- Runtime / PID files ---
 celerybeat-schedule
@@ -48,6 +49,9 @@ logs/
 tmp/
 scratch/
 temp_*/
+
+# --- Local dev scripts (personal/throwaway, not committed) ---
+scripts/local/
 
 # --- Editor backups ---
 *.swp

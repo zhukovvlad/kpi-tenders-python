@@ -1,10 +1,11 @@
 from typing import Any
 
 from app.celery_app import celery_app
+from app.storage.minio_client import MinIOClient
 from app.workers.base import run_document_task
 
 
-def _handle(file_bytes: bytes, storage_path: str) -> dict[str, Any]:
+def _handle(file_bytes: bytes, storage_path: str, minio: MinIOClient) -> dict[str, Any]:
     # TODO: XLSX (openpyxl) / PDF (Gemini) invoice parsing — see docs/PROMPT.md §Модули/parse_invoice.
     raise NotImplementedError("parse_invoice module is not implemented yet")
 

@@ -46,7 +46,7 @@ def test_success_path_calls_go_in_order(mock_task, mock_go, mock_minio):
     mock_go.update_task.assert_any_call(
         task_id="t-1", status="completed", result_payload={"parsed": True}
     )
-    handler.assert_called_once_with(b"file bytes", "tenders/f.docx")
+    handler.assert_called_once_with(b"file bytes", "tenders/f.docx", mock_minio)
 
 
 def test_handler_failure_reports_failed_and_retries(mock_task, mock_go, mock_minio):
@@ -76,6 +76,15 @@ def test_not_implemented_error_is_not_retried(mock_task, mock_go, mock_minio):
     handler = MagicMock(side_effect=NotImplementedError("stub"))
 
     with pytest.raises(NotImplementedError):
+        run_document_task(mock_task, "t-1", "d-1", "tenders/f.docx", handler)
+
+    mock_task.retry.assert_not_called()
+
+
+def test_value_error_is_not_retried(mock_task, mock_go, mock_minio):
+    handler = MagicMock(side_effect=ValueError("empty document"))
+
+    with pytest.raises(ValueError):
         run_document_task(mock_task, "t-1", "d-1", "tenders/f.docx", handler)
 
     mock_task.retry.assert_not_called()
