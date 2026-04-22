@@ -167,9 +167,28 @@ class TestDocxTables:
         doc.save(buf)
         md = docx_to_markdown(buf.getvalue())
 
-        header_line = [l for l in md.splitlines() if "Объединено" in l][0]
+        header_line = [line for line in md.splitlines() if "Объединено" in line][0]
         # "Объединено" must appear exactly once — not duplicated by the span.
         assert header_line.count("Объединено") == 1
+
+    def test_table_separator_uses_max_cols(self):
+        """Separator row must span max_cols across all rows, not just the header's visible cells."""
+        doc = Document()
+        tbl = doc.add_table(rows=2, cols=3)
+        # Merge first two header cells → header has 2 visible cells, data rows have 3.
+        tbl.cell(0, 0).merge(tbl.cell(0, 1))
+        tbl.cell(0, 0).text = "Объединено"
+        tbl.cell(0, 2).text = "Отдельно"
+        tbl.cell(1, 0).text = "A"
+        tbl.cell(1, 1).text = "B"
+        tbl.cell(1, 2).text = "C"
+        buf = BytesIO()
+        doc.save(buf)
+        md = docx_to_markdown(buf.getvalue())
+
+        sep_line = [line for line in md.splitlines() if "---" in line][0]
+        # Separator must have 3 columns (max), not 2 (from merged header).
+        assert sep_line.count("---") == 3
 
 
 # ===========================================================================
@@ -285,3 +304,20 @@ class TestXlsxToMarkdownSections:
         # Must be human-readable date, NOT "2024-06-15 00:00:00".
         assert "2024-06-15" in md
         assert "00:00:00" not in md
+
+    def test_pipe_in_cell_is_escaped(self):
+        """A pipe character in a cell value must be escaped so the table stays valid."""
+        data = make_xlsx({"Фильтр": [["Критерий", "Значение"], ["Тип A|B", "+"]]})
+        _, md = xlsx_to_markdown_sections(data)[0]
+        # The pipe inside the cell value must appear escaped as \|
+        assert r"A\|B" in md
+
+    def test_collect_rows_trailing_none_only_strips_trailing(self):
+        """Trailing-None cells are stripped but mid-row None cells are kept as empty strings."""
+        # Row: ["A", None, "C", None, None]
+        # After stripping trailing Nones: ["A", "", "C"]   (two trailing stripped, mid one kept)
+        data = make_xlsx({"S": [["H1", "H2", "H3", "H4", "H5"], ["A", None, "C", None, None]]})
+        _, md = xlsx_to_markdown_sections(data)[0]
+        data_line = [line for line in md.splitlines() if "| A" in line][0]
+        # "A" in col0, "" in col1 (kept), "C" in col2, trailing Nones stripped
+        assert "| A |  | C |" in data_line

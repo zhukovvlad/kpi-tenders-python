@@ -48,7 +48,6 @@ def _local_handle(file_bytes: bytes, path: Path) -> tuple[str, dict]:
             "format": "markdown",
             "md_storage_path": "<local — not uploaded to MinIO>",
             "char_count": len(content),
-            "section_count": len(sections),
             "sheet_count": len(sections),
         }
         return content, meta

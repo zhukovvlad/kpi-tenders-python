@@ -23,17 +23,17 @@ def xlsx_to_markdown_sections(file_bytes: bytes) -> list[tuple[str, str]]:
     """
     wb = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
     sections: list[tuple[str, str]] = []
+    try:
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows = _collect_rows(ws)
 
-    for sheet_name in wb.sheetnames:
-        ws = wb[sheet_name]
-        rows = _collect_rows(ws)
+            if not rows:
+                continue
 
-        if not rows:
-            continue
-
-        sections.append((sheet_name, _rows_to_md_table(rows)))
-
-    wb.close()
+            sections.append((sheet_name, _rows_to_md_table(rows)))
+    finally:
+        wb.close()
     return sections
 
 
@@ -52,9 +52,11 @@ def _collect_rows(ws) -> list[list[str]]:  # noqa: ANN001
 
         str_cells = [_format_cell(cell) for cell in row]
 
-        # Drop trailing empty cells to keep tables clean.
-        while str_cells and str_cells[-1] == "":
-            str_cells.pop()
+        # Drop trailing empty cells to keep tables clean (immutable slice, no mutation).
+        end = len(str_cells)
+        while end > 0 and str_cells[end - 1] == "":
+            end -= 1
+        str_cells = str_cells[:end]
 
         if str_cells:
             result.append(str_cells)
@@ -67,13 +69,18 @@ def _format_cell(value: object) -> str:
         return ""
     # datetime must be checked before date (datetime is a subclass of date).
     if isinstance(value, datetime):
-        return value.strftime("%Y-%m-%d")
+        return _escape_md_cell(value.strftime("%Y-%m-%d"))
     if isinstance(value, date):
-        return value.strftime("%Y-%m-%d")
+        return _escape_md_cell(value.strftime("%Y-%m-%d"))
     # Whole-number floats: show as integer (5800.0 → "5800").
     if isinstance(value, float) and value == int(value):
-        return str(int(value))
-    return str(value)
+        return _escape_md_cell(str(int(value)))
+    return _escape_md_cell(str(value))
+
+
+def _escape_md_cell(value: str) -> str:
+    """Escape characters that would break a Markdown table cell."""
+    return value.replace("\n", " ").replace("|", "\\|")
 
 
 def _rows_to_md_table(rows: list[list[str]]) -> str:
@@ -86,7 +93,7 @@ def _rows_to_md_table(rows: list[list[str]]) -> str:
     header = _pad_row(rows[0], col_count)
     md_lines: list[str] = [
         "| " + " | ".join(header) + " |",
-        "|" + " | ".join(["---"] * col_count) + "|",
+        "| " + " | ".join(["---"] * col_count) + " |",
     ]
 
     for row in rows[1:]:

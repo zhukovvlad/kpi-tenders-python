@@ -59,11 +59,13 @@ def _runs_to_md(runs) -> str:  # noqa: ANN001
         if not text:
             continue
         if run.bold and run.italic:
-            text = f"***{text}***"
+            # Strip inner whitespace: CommonMark requires delimiter runs not to
+            # have leading/trailing spaces (" **hello** " is not rendered as bold).
+            text = f"***{text.strip()}***"
         elif run.bold:
-            text = f"**{text}**"
+            text = f"**{text.strip()}**"
         elif run.italic:
-            text = f"*{text}*"
+            text = f"*{text.strip()}*"
         parts.append(text)
     return "".join(parts)
 
@@ -92,10 +94,12 @@ def _table_to_md(table: Table) -> str:
     if not table.rows:
         return ""
 
-    rows_md: list[str] = []
-    for i, row in enumerate(table.rows):
+    table_rows: list[list[str]] = []
+    for row in table.rows:
         # python-docx repeats the same _Cell object for each column a merged
         # cell spans.  Deduplicate by the underlying XML element identity.
+        # Note: cell._tc is a private lxml attribute; it's stable across
+        # current python-docx versions but may change in future releases.
         seen: set[int] = set()
         cells: list[str] = []
         for cell in row.cells:
@@ -104,9 +108,16 @@ def _table_to_md(table: Table) -> str:
                 continue
             seen.add(cid)
             cells.append(cell.text.strip().replace("\n", " ").replace("|", "\\|"))
+        table_rows.append(cells)
 
-        rows_md.append("| " + " | ".join(cells) + " |")
+    # Use max visible cells across all rows so the separator always covers
+    # the widest row (important when a merged header has fewer cells than data rows).
+    col_count = max(len(cells) for cells in table_rows)
+    rows_md: list[str] = []
+    for i, cells in enumerate(table_rows):
+        padded = (cells + [""] * col_count)[:col_count]
+        rows_md.append("| " + " | ".join(padded) + " |")
         if i == 0:
-            rows_md.append("| " + " | ".join(["---"] * len(cells)) + " |")
+            rows_md.append("| " + " | ".join(["---"] * col_count) + " |")
 
     return "\n".join(rows_md)

@@ -38,12 +38,14 @@ app/
 ├── workers/
 │   ├── router.py         — MODULE_TASKS + dispatch(module_name) → AsyncResult
 │   ├── base.py           — run_document_task(): общий lifecycle (processing → download → handler → completed/failed)
-│   ├── convert.py        — DOCX/XLSX → Markdown (stub)
+│   ├── convert.py        — DOCX/XLSX → Markdown + MinIO upload ✅
 │   ├── anonymize.py      — Natasha + Presidio NER (stub)
 │   ├── extract.py        — 2-stage Gemini Flash/Pro (stub)
 │   └── parse_invoice.py  — XLSX/PDF → позиции (stub)
 │
-├── parsers/              — DOCX/XLSX парсеры (не реализованы)
+├── parsers/
+│   ├── docx_parser.py    — DOCX → Markdown ✅
+│   └── xlsx_parser.py    — XLSX → Markdown ✅
 ├── nlp/                  — анонимизатор (не реализован)
 ├── llm/                  — Gemini wrappers + промпты (не реализованы)
 │
@@ -193,13 +195,13 @@ make check            # ruff --check без записи
 
 - Скелет FastAPI + `/health`, `/process` с диспетчером.
 - Celery app с регистрацией 4 воркеров.
-- `MinIOClient.download(storage_path)`.
+- `MinIOClient.download(storage_path)` и `MinIOClient.upload(object_name, data)`.
 - `GoClient.update_task(...)` с ретраями.
 - Общий lifecycle `run_document_task()` в `workers/base.py`.
+- Модуль `convert`: `docx_parser.py`, `xlsx_parser.py`, `workers/convert.py` — полностью реализован, 85 тестов.
 
 ### Заглушки (`NotImplementedError`)
 
-- `workers/convert._handle` — DOCX/XLSX → Markdown
 - `workers/anonymize._handle` — Natasha + Presidio NER
 - `workers/extract._handle` — Gemini Flash (keys) + Gemini Pro (values)
 - `workers/parse_invoice._handle` — XLSX/PDF счета

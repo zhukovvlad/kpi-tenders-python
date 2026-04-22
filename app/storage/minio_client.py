@@ -25,6 +25,11 @@ def parse_storage_path(storage_path: str, default_bucket: str) -> ObjectLocation
     storage_path formats:
         "bucket/prefix/uuid.ext"  -> explicit bucket
         "prefix/uuid.ext"         -> use default bucket
+
+    Note: if the leading path segment does not match default_bucket, the entire
+    path (including the segment) becomes the object_name inside default_bucket.
+    Unknown bucket prefixes are absorbed silently rather than raising an error,
+    because storage_path values come from Go and are always trusted inputs.
     """
     normalized = storage_path.lstrip("/")
     if "/" not in normalized:
@@ -46,6 +51,11 @@ class MinIOClient:
             secure=s.minio_use_ssl,
         )
         self._default_bucket = s.minio_bucket
+
+    @property
+    def default_bucket(self) -> str:
+        """The default MinIO bucket name (read-only)."""
+        return self._default_bucket
 
     def download(self, storage_path: str) -> bytes:
         """Download an object from MinIO and return its raw bytes.

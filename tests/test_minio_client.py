@@ -52,7 +52,7 @@ def test_nested_path_under_matching_bucket():
 _FAKE_SETTINGS = dict(
     minio_endpoint="localhost:9000",
     minio_access_key="user",
-    minio_secret_key="secret",
+    minio_secret_key="secret",  # noqa: S106
     minio_use_ssl=False,
     minio_bucket="tenders",
 )

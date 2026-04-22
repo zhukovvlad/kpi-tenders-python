@@ -81,6 +81,15 @@ def test_not_implemented_error_is_not_retried(mock_task, mock_go, mock_minio):
     mock_task.retry.assert_not_called()
 
 
+def test_value_error_is_not_retried(mock_task, mock_go, mock_minio):
+    handler = MagicMock(side_effect=ValueError("empty document"))
+
+    with pytest.raises(ValueError):
+        run_document_task(mock_task, "t-1", "d-1", "tenders/f.docx", handler)
+
+    mock_task.retry.assert_not_called()
+
+
 def test_failed_go_report_is_swallowed(mock_task, mock_go, mock_minio):
     # handler fails; Go also fails on the "failed" status update — should not propagate.
     mock_go.update_task.side_effect = [None, RuntimeError("broke"), RuntimeError("go down")]

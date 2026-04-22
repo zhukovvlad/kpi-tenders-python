@@ -10,7 +10,7 @@ from app.storage.minio_client import MinIOClient
 log = logging.getLogger(__name__)
 
 # Permanent failures: retrying will not help, propagate immediately.
-_NO_RETRY = (GoClientError, NotImplementedError)
+_NO_RETRY = (GoClientError, NotImplementedError, ValueError)
 
 
 def run_document_task(

@@ -21,9 +21,9 @@ from app.workers.convert import _handle, _md_object_name
 
 
 def _make_minio(return_path: str = "tenders/result.md") -> MagicMock:
-    """Return a mock MinIOClient with _default_bucket set."""
+    """Return a mock MinIOClient with default_bucket set."""
     mock = MagicMock(spec=MinIOClient)
-    mock._default_bucket = "tenders"
+    mock.default_bucket = "tenders"
     mock.upload.return_value = return_path
     return mock
 
@@ -166,14 +166,11 @@ class TestHandleXlsx:
         )
         assert result["sheet_count"] == 2
 
-    def test_section_count_equals_sheet_count(self):
+    def test_no_section_count_for_xlsx(self):
+        """section_count was removed from the xlsx payload to avoid confusion with sheet_count."""
         minio = _make_minio()
-        result = _handle(
-            _xlsx({"S1": [["X"], [1]], "S2": [["Y"], [2]]}),
-            "tenders/file.xlsx",
-            minio,
-        )
-        assert result["section_count"] == result["sheet_count"]
+        result = _handle(_xlsx({"S": [["X"], [1]]}), "tenders/f.xlsx", minio)
+        assert "section_count" not in result
 
     def test_uploaded_content_has_sheet_headers(self):
         minio = _make_minio()
@@ -205,3 +202,32 @@ class TestHandleErrors:
     def test_no_extension_raises_value_error(self):
         with pytest.raises(ValueError, match="Unsupported"):
             _handle(b"data", "no_extension", _make_minio())
+
+    def test_empty_docx_raises_value_error(self):
+        """A DOCX with no content must raise ValueError, not upload an empty file."""
+        with pytest.raises(ValueError, match="empty DOCX"):
+            _handle(_docx(), "tenders/file.docx", _make_minio())
+
+    def test_empty_xlsx_raises_value_error(self):
+        """An XLSX where all sheets are empty must raise ValueError."""
+        empty = _xlsx({"Пустой": []})
+        with pytest.raises(ValueError, match="empty XLSX"):
+            _handle(empty, "tenders/file.xlsx", _make_minio())
+
+    def test_minio_upload_error_propagates_docx(self):
+        """MinIOError from minio.upload() must propagate out of _handle_docx."""
+        from app.storage.minio_client import MinIOError
+
+        minio = _make_minio()
+        minio.upload.side_effect = MinIOError("S3 error")
+        with pytest.raises(MinIOError):
+            _handle(_docx(paragraphs=["text"]), "tenders/f.docx", minio)
+
+    def test_minio_upload_error_propagates_xlsx(self):
+        """MinIOError from minio.upload() must propagate out of _handle_xlsx."""
+        from app.storage.minio_client import MinIOError
+
+        minio = _make_minio()
+        minio.upload.side_effect = MinIOError("S3 error")
+        with pytest.raises(MinIOError):
+            _handle(_xlsx({"S": [["Col"], ["val"]]}), "tenders/f.xlsx", minio)

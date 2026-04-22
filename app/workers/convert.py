@@ -32,7 +32,9 @@ def _handle(file_bytes: bytes, storage_path: str, minio: MinIOClient) -> dict[st
 
 def _handle_docx(file_bytes: bytes, storage_path: str, minio: MinIOClient) -> dict[str, Any]:
     content = docx_to_markdown(file_bytes)
-    md_object = _md_object_name(storage_path, minio._default_bucket)
+    if not content:
+        raise ValueError("empty DOCX document: no content extracted")
+    md_object = _md_object_name(storage_path, minio.default_bucket)
     md_storage_path = minio.upload(md_object, content.encode("utf-8"))
     return {
         "format": "markdown",
@@ -44,15 +46,16 @@ def _handle_docx(file_bytes: bytes, storage_path: str, minio: MinIOClient) -> di
 
 def _handle_xlsx(file_bytes: bytes, storage_path: str, minio: MinIOClient) -> dict[str, Any]:
     sections = xlsx_to_markdown_sections(file_bytes)
+    if not sections:
+        raise ValueError("empty XLSX document: no sheets with content")
     parts = [f"## Лист: {name}\n\n{table}" for name, table in sections]
     content = "\n\n".join(parts)
-    md_object = _md_object_name(storage_path, minio._default_bucket)
+    md_object = _md_object_name(storage_path, minio.default_bucket)
     md_storage_path = minio.upload(md_object, content.encode("utf-8"))
     return {
         "format": "markdown",
         "md_storage_path": md_storage_path,
         "char_count": len(content),
-        "section_count": len(sections),
         "sheet_count": len(sections),
     }
 
