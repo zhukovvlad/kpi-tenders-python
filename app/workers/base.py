@@ -18,17 +18,18 @@ def run_document_task(
     task_id: str,
     document_id: str,
     storage_path: str,
-    handler: Callable[[bytes, str], dict[str, Any]],
+    handler: Callable[[bytes, str, MinIOClient], dict[str, Any]],
 ) -> dict[str, Any]:
     """
     Shared lifecycle for all module tasks:
 
     1. Mark task as `processing` in Go.
     2. Download the file from MinIO.
-    3. Run the module-specific `handler(file_bytes, storage_path) -> result_payload`.
+    3. Run the module-specific `handler(file_bytes, storage_path, minio) -> result_payload`.
     4. Mark task as `completed` with the result, or `failed` on error.
 
-    `handler` is pure processing logic — no HTTP, no broker awareness.
+    `minio` is passed to the handler so modules that produce output files
+    (e.g. `convert`) can upload them to the same MinIO instance.
     GoClientError and NotImplementedError are not retried (permanent failures).
     """
     minio = MinIOClient()
@@ -42,7 +43,7 @@ def run_document_task(
             )
 
             file_bytes = minio.download(storage_path)
-            result = handler(file_bytes, storage_path)
+            result = handler(file_bytes, storage_path, minio)
 
             go.update_task(
                 task_id=task_id,

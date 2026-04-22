@@ -57,6 +57,7 @@ def test_update_task_excludes_none_fields(client):
     route = respx.patch(TASK_URL).mock(return_value=httpx.Response(200))
     client.update_task("task-1", "processing", celery_task_id="c-1")
     import json
+
     body = json.loads(route.calls[0].request.content)
     assert "error_message" not in body
     assert "result_payload" not in body

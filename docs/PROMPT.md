@@ -187,7 +187,7 @@ XLSX → Markdown:
 ```json
 {
   "format": "markdown",
-  "content": "# Договор генерального подряда\n\n## 1. Предмет договора\n\n...",
+  "md_storage_path": "tenders/docs/2024/uuid.md",
   "char_count": 45200,
   "section_count": 12,
   "sheet_count": 3
@@ -195,6 +195,8 @@ XLSX → Markdown:
 ```
 
 `sheet_count` — только для XLSX, `section_count` — количество заголовков H1/H2.
+Markdown-файл загружается в MinIO воркером; `md_storage_path` — путь внутри MinIO
+(формат `bucket/object_name`), по которому Go или следующий модуль может его скачать.
 
 **Библиотеки:** `python-docx`, `openpyxl`
 

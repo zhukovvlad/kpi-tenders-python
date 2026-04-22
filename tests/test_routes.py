@@ -13,14 +13,17 @@ CELERY_ID = "celery-abc-123"
 
 @pytest.fixture
 def client():
-    with patch("app.api.routes.dispatch") as mock_dispatch, \
-         patch("app.api.routes.celery_app") as mock_celery:
+    with (
+        patch("app.api.routes.dispatch") as mock_dispatch,
+        patch("app.api.routes.celery_app") as mock_celery,
+    ):
         mock_result = MagicMock()
         mock_result.id = CELERY_ID
         mock_dispatch.return_value = mock_result
         mock_celery.control.ping.return_value = [{"worker@host": {"ok": "pong"}}]
 
         from app.main import app
+
         with TestClient(app) as c:
             yield c, mock_dispatch
 
