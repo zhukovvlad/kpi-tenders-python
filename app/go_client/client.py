@@ -25,13 +25,23 @@ class GoClient:
     """HTTP client to Go internal worker API.
 
     Authenticates with a static bearer token (ServiceBearerAuth on the Go side).
+    Use as a context manager to ensure the underlying connection pool is closed.
     """
 
-    def __init__(self, base_url: str | None = None, timeout: float = 10.0) -> None:
+    def __init__(self, base_url: str | None = None) -> None:
         s = get_settings()
         self._base_url = (base_url or s.go_service_url).rstrip("/")
         self._token = s.service_token
-        self._timeout = timeout
+        self._client = httpx.Client(timeout=s.go_client_timeout)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "GoClient":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
     @retry(
         reraise=True,
@@ -62,8 +72,7 @@ class GoClient:
         }
 
         try:
-            with httpx.Client(timeout=self._timeout) as client:
-                response = client.patch(url, json=body, headers=headers)
+            response = self._client.patch(url, json=body, headers=headers)
         except _RETRYABLE:
             raise
 

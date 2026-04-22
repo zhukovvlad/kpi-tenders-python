@@ -22,10 +22,13 @@ class Settings(BaseSettings):
     go_service_url: str = "http://localhost:8080"
     service_token: str = Field(..., min_length=1)
 
+    # Go internal API (continued)
+    go_client_timeout: float = 10.0
+
     # MinIO
     minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin"
+    minio_access_key: str = Field(..., min_length=1)
+    minio_secret_key: str = Field(..., min_length=1)
     minio_bucket: str = "tenders"
     minio_use_ssl: bool = False
 
@@ -33,7 +36,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # PostgreSQL (direct access for AI/ML tables)
-    database_url: str = "postgresql+asyncpg://kpi:kpi_secret@localhost:5432/kpi_tenders"
+    database_url: str = Field(..., min_length=1)
 
     # Gemini
     gemini_api_key: str = ""

@@ -1,13 +1,20 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.api.schemas import HealthResponse, ProcessRequest, ProcessResponse
 from app.celery_app import celery_app
+from app.config import get_settings
 from app.workers.router import dispatch
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _require_service_token(authorization: str = Header(default="")) -> None:
+    expected = f"Bearer {get_settings().service_token}"
+    if authorization != expected:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -28,6 +35,7 @@ def health() -> HealthResponse:
     "/process",
     response_model=ProcessResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(_require_service_token)],
 )
 def process(payload: ProcessRequest) -> ProcessResponse:
     try:
