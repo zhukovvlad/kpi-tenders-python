@@ -103,4 +103,5 @@ def _rows_to_md_table(rows: list[list[str]]) -> str:
 
 
 def _pad_row(row: list[str], width: int) -> list[str]:
-    return (row + [""] * width)[:width]
+    pad_len = max(0, width - len(row))
+    return (row + [""] * pad_len)[:width]

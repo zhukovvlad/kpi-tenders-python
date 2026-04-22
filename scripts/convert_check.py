@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Quick sanity-check for the convert module.
 
 Usage:
