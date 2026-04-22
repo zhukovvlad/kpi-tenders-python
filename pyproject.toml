@@ -1,0 +1,39 @@
+[project]
+name = "python-kpi-tenders"
+version = "0.1.0"
+description = "AI worker for tender document processing"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv", "tests/fixtures"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "SIM",  # simplify
+    "RET",  # return
+    "N",    # pep8-naming
+]
+ignore = [
+    "E501",  # line-length handled by formatter
+    "B008",  # allow FastAPI Depends() in defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["N802", "N806"]  # test naming is relaxed
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: requires external services (Postgres, Redis, MinIO, Go)",
+    "slow: long-running tests",
+    "llm: hits Gemini API (requires GEMINI_API_KEY)",
+]

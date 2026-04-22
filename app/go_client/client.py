@@ -1,0 +1,71 @@
+import logging
+from typing import Any
+
+import httpx
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+from app.api.schemas import TaskStatus, TaskStatusUpdate
+from app.config import get_settings
+
+log = logging.getLogger(__name__)
+
+_RETRYABLE = (httpx.NetworkError, httpx.TimeoutException, httpx.RemoteProtocolError)
+
+
+class GoClientError(Exception):
+    pass
+
+
+class GoClient:
+    """HTTP client to Go internal worker API.
+
+    Authenticates with a static bearer token (ServiceBearerAuth on the Go side).
+    """
+
+    def __init__(self, base_url: str | None = None, timeout: float = 10.0) -> None:
+        s = get_settings()
+        self._base_url = (base_url or s.go_service_url).rstrip("/")
+        self._token = s.service_token
+        self._timeout = timeout
+
+    @retry(
+        reraise=True,
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
+        retry=retry_if_exception_type(_RETRYABLE),
+    )
+    def update_task(
+        self,
+        task_id: str,
+        status: TaskStatus,
+        celery_task_id: str | None = None,
+        result_payload: dict[str, Any] | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        """PATCH /internal/worker/tasks/{task_id}/status"""
+        body = TaskStatusUpdate(
+            status=status,
+            celery_task_id=celery_task_id,
+            result_payload=result_payload,
+            error_message=error_message,
+        ).model_dump(exclude_none=True)
+
+        url = f"{self._base_url}/internal/worker/tasks/{task_id}/status"
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.patch(url, json=body, headers=headers)
+        except _RETRYABLE:
+            raise
+
+        if response.status_code >= 400:
+            raise GoClientError(f"go update_task failed: {response.status_code} {response.text}")

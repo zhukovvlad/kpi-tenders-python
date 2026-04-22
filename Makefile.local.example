@@ -1,0 +1,20 @@
+# Personal overrides for Makefile.
+# Copy to `Makefile.local` (ignored by git) and edit as needed.
+
+# Bind uvicorn locally instead of all interfaces.
+# HOST = 127.0.0.1
+# PORT = 8080
+
+# Use a different Python or venv location.
+# PY   = python3.12
+# VENV = .venv-dev
+
+# More verbose Celery output during local debugging.
+# CELERY_LOGLEVEL = DEBUG
+
+# Scale per-queue workers.
+# CELERY_CONCURRENCY_IO  = 8
+# CELERY_CONCURRENCY_LLM = 4
+
+# Flower port if :5555 is already taken.
+# FLOWER_PORT = 5556
