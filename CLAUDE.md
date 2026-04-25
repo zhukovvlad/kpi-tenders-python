@@ -39,14 +39,15 @@ app/
 ├── workers/
 │   ├── base.py           — run_document_task(): общий lifecycle (processing → download → handler → completed/failed)
 │   ├── convert.py        — DOCX/XLSX → Markdown + MinIO upload ✅
-│   ├── anonymize.py      — Natasha + Presidio NER (stub)
+│   ├── anonymize.py      — Natasha + stdnum + regex NER ✅
 │   ├── extract.py        — 2-stage Gemini Flash/Pro (stub)
 │   └── parse_invoice.py  — XLSX/PDF → позиции (stub)
 │
 ├── parsers/
 │   ├── docx_parser.py    — DOCX → Markdown ✅
 │   └── xlsx_parser.py    — XLSX → Markdown ✅
-├── nlp/                  — анонимизатор (не реализован)
+├── nlp/
+│   └── anonymizer.py     — NER pipeline: Natasha (PERSON) + stdnum (INN/OGRN/SNILS) + regex ✅
 ├── llm/                  — Gemini wrappers + промпты (не реализованы)
 │
 ├── storage/
@@ -129,8 +130,7 @@ tests/                    — pytest + pytest-asyncio + respx
 GET  /health         — { status: "ok", celery: "ok" | "degraded" }
 ```
 
-Go публикует задачи напрямую в Redis (Celery protocol v2). Формат и маппинг
-модуль → очередь → task_name описаны в `docs/worker-pipeline.md`.
+Go публикует задачи напрямую в Redis (Celery protocol v2). Именованные задачи: `app.workers.<module>.<module>_task`. Маппинг модуль → очередь — через `task_routes` в `celery_app.py`.
 
 ### Go internal (Python вызывает Go)
 
