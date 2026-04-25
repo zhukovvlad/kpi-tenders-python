@@ -9,19 +9,20 @@ AI-воркер SaaS-платформы для анализа тендерной
 ## Место в системе
 
 ```text
-React (5173) ──HTTP──► Go (8080) ──HTTP──► Python (8000)
-                         ▲                     │
-                         │                     ▼
-                         └──── Go internal API (PATCH status)
-                                               │
-                                               ▼
-                        Redis (broker)   MinIO (files)   PostgreSQL (AI/ML direct)
+React (5173) ──HTTP──► Go (8080) ──LPUSH──► Redis ──► Python workers
+                         ▲                               │
+                         │                               ▼
+                         └──────── Go internal API (PATCH status)
+                                                         │
+                                                         ▼
+                                   MinIO (files)   PostgreSQL (AI/ML direct)
 ```
 
 - React общается **только** с Go. Python **никогда** не отвечает в React напрямую.
-- Go создаёт задачу в `document_tasks` и зовёт Python через `POST /process`.
-- Python пишет обратно в Go через `PATCH /internal/worker/tasks/{id}/status` с `Authorization: Bearer <SERVICE_TOKEN>`.
+- Go создаёт задачу в `document_tasks` и публикует Celery-сообщение **напрямую в Redis** (`LPUSH`).
+- Python-воркеры забирают задачи из Redis и пишут обратно в Go через `PATCH /internal/worker/tasks/{id}/status` с `Authorization: Bearer <SERVICE_TOKEN>`.
 - Python не хранит собственного состояния в Go-таблицах. Прямой `asyncpg` используется **только** для AI/ML-производных таблиц (эмбеддинги, чанки, кластеры).
+- Python API (`/health`) нужен только для мониторинга воркеров.
 
 ## Layout
 
@@ -32,21 +33,21 @@ app/
 ├── config.py             — Pydantic Settings, lru_cache get_settings()
 │
 ├── api/
-│   ├── routes.py         — POST /process, GET /health
-│   └── schemas.py        — ProcessRequest/Response, HealthResponse, TaskStatusUpdate
+│   ├── routes.py         — GET /health
+│   └── schemas.py        — HealthResponse, TaskStatusUpdate
 │
 ├── workers/
-│   ├── router.py         — MODULE_TASKS + dispatch(module_name) → AsyncResult
 │   ├── base.py           — run_document_task(): общий lifecycle (processing → download → handler → completed/failed)
 │   ├── convert.py        — DOCX/XLSX → Markdown + MinIO upload ✅
-│   ├── anonymize.py      — Natasha + Presidio NER (stub)
+│   ├── anonymize.py      — Natasha + stdnum + regex NER ✅
 │   ├── extract.py        — 2-stage Gemini Flash/Pro (stub)
 │   └── parse_invoice.py  — XLSX/PDF → позиции (stub)
 │
 ├── parsers/
 │   ├── docx_parser.py    — DOCX → Markdown ✅
 │   └── xlsx_parser.py    — XLSX → Markdown ✅
-├── nlp/                  — анонимизатор (не реализован)
+├── nlp/
+│   └── anonymizer.py     — NER pipeline: Natasha (PERSON) + stdnum (INN/OGRN/SNILS) + regex ✅
 ├── llm/                  — Gemini wrappers + промпты (не реализованы)
 │
 ├── storage/
@@ -90,7 +91,7 @@ tests/                    — pytest + pytest-asyncio + respx
 - **Serializer:** только JSON (`task_serializer=json`, `accept_content=[json]`).
 - **`task_acks_late=True`, `worker_prefetch_multiplier=1`** — задача остаётся в очереди, пока воркер не подтвердит её завершение; воркер берёт по одной.
 - **Именованные задачи:** `app.workers.<module>.<module>_task` — явно `name=` на декораторе, чтобы не зависеть от пути импорта.
-- `dispatch(module_name)` в `workers/router.py` — единственная точка входа из API.
+- Go публикует задачи напрямую в Redis (через `LPUSH`, Celery protocol v2). Python-воркеры забирают их через `BRPOP`.
 
 #### Очереди
 
@@ -123,15 +124,15 @@ tests/                    — pytest + pytest-asyncio + respx
 
 ## Эндпоинты
 
-### Python (вызывает Go)
+### Python HTTP API (только мониторинг)
 
 ```text
-POST /process        — ProcessRequest{task_id, document_id, module_name, storage_path}
-                       → 202 { task_id, celery_task_id }
 GET  /health         — { status: "ok", celery: "ok" | "degraded" }
 ```
 
-### Go internal (вызывает Python)
+Go публикует задачи напрямую в Redis (Celery protocol v2). Именованные задачи: `app.workers.<module>.<module>_task`. Маппинг модуль → очередь — через `task_routes` в `celery_app.py`.
+
+### Go internal (Python вызывает Go)
 
 ```text
 PATCH /internal/worker/tasks/{task_id}/status
@@ -193,7 +194,7 @@ make check            # ruff --check без записи
 
 ### Реализовано
 
-- Скелет FastAPI + `/health`, `/process` с диспетчером.
+- FastAPI с `/health` (мониторинг). `/process` удалён — Go публикует задачи напрямую в Redis.
 - Celery app с регистрацией 4 воркеров.
 - `MinIOClient.download(storage_path)` и `MinIOClient.upload(object_name, data)`.
 - `GoClient.update_task(...)` с ретраями.
@@ -211,8 +212,7 @@ make check            # ruff --check без записи
 Для полноценной работы Python требует от Go:
 
 1. `PATCH /internal/worker/tasks/{id}/status` — обновить `document_tasks`.
-2. `POST /internal/worker/process` (или прямой вызов `POST /process` на Python) — старт обработки.
-3. `POST /documents/:id/presigned-upload` — для React-загрузок в MinIO.
+2. `POST /documents/:id/presigned-upload` — для React-загрузок в MinIO.
 
 ## Документация и девлог
 
