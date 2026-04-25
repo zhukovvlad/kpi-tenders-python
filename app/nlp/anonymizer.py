@@ -15,7 +15,6 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any
 
 from natasha import Doc, NewsEmbedding, NewsNERTagger, Segmenter
 from stdnum.ru import inn as stdnum_inn
@@ -476,10 +475,7 @@ class NatashaPipeline:
         words = [w for w in text.split() if len(w) > 1]
         if not words or not all(w[0].isupper() for w in words):
             return False
-        if " " not in text and "." not in text:
-            if len(text) < _PERSON_MIN_LEN_SINGLE_WORD:
-                return False
-        return True
+        return " " in text or "." in text or len(text) >= _PERSON_MIN_LEN_SINGLE_WORD
 
     @staticmethod
     def _accept_org(raw: str) -> bool:
@@ -500,8 +496,15 @@ class NatashaPipeline:
 
     @staticmethod
     def _dedup_spans(spans: list[Span]) -> list[Span]:
-        """Remove overlapping spans: prefer longer, then by entity priority."""
-        _PRIORITY: dict[str, int] = {
+        """Remove overlapping spans using greedy left-to-right selection.
+
+        Spans are sorted by (start, -length, priority), so for spans starting
+        at the same position the longest one wins. Once a span is accepted,
+        any later span whose start falls inside it is dropped. This does NOT
+        resolve partial overlaps between spans starting at different positions
+        — the earlier-starting span always wins regardless of length.
+        """
+        _priority: dict[str, int] = {
             "INN": 0, "OGRN": 1, "SNILS": 2, "BIK": 3,
             "BANK_ACCOUNT": 4, "KPP": 5, "CADASTRAL": 6,
             "RU_PASSPORT": 7, "PHONE_NUMBER": 8, "EMAIL_ADDRESS": 9,
@@ -513,7 +516,7 @@ class NatashaPipeline:
             key=lambda s: (
                 s.start,
                 -(s.end - s.start),
-                _PRIORITY.get(s.entity_type, 99),
+                _priority.get(s.entity_type, 99),
             )
         )
 
