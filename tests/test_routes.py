@@ -30,4 +30,6 @@ def test_health_returns_degraded_when_celery_down():
             resp = c.get("/health")
 
     assert resp.status_code == 200
-    assert resp.json()["celery"] == "degraded"
+    data = resp.json()
+    assert data["status"] == "degraded"
+    assert data["celery"] == "degraded"
