@@ -18,6 +18,6 @@ def health() -> HealthResponse:
     except Exception as exc:
         log.warning("celery ping failed: %s", exc)
     return HealthResponse(
-        status="ok",
+        status="ok" if celery_ok else "degraded",
         celery="ok" if celery_ok else "degraded",
     )

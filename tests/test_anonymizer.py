@@ -12,7 +12,6 @@ import pytest
 
 from app.nlp.anonymizer import ConsistencyMapper, NatashaPipeline, Span
 
-
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
 

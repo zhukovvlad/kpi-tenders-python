@@ -90,7 +90,7 @@ tests/                    — pytest + pytest-asyncio + respx
 - **Serializer:** только JSON (`task_serializer=json`, `accept_content=[json]`).
 - **`task_acks_late=True`, `worker_prefetch_multiplier=1`** — задача остаётся в очереди, пока воркер не подтвердит её завершение; воркер берёт по одной.
 - **Именованные задачи:** `app.workers.<module>.<module>_task` — явно `name=` на декораторе, чтобы не зависеть от пути импорта.
-- `dispatch(module_name)` в `workers/router.py` — единственная точка входа из API.
+- Go публикует задачи напрямую в Redis (через `LPUSH`, Celery protocol v2). Python-воркеры забирают их через `BRPOP`.
 
 #### Очереди
 
@@ -194,7 +194,7 @@ make check            # ruff --check без записи
 
 ### Реализовано
 
-- Скелет FastAPI + `/health`, `/process` с диспетчером.
+- FastAPI с `/health` (мониторинг). `/process` удалён — Go публикует задачи напрямую в Redis.
 - Celery app с регистрацией 4 воркеров.
 - `MinIOClient.download(storage_path)` и `MinIOClient.upload(object_name, data)`.
 - `GoClient.update_task(...)` с ретраями.
@@ -212,8 +212,7 @@ make check            # ruff --check без записи
 Для полноценной работы Python требует от Go:
 
 1. `PATCH /internal/worker/tasks/{id}/status` — обновить `document_tasks`.
-2. `POST /internal/worker/process` (или прямой вызов `POST /process` на Python) — старт обработки.
-3. `POST /documents/:id/presigned-upload` — для React-загрузок в MinIO.
+2. `POST /documents/:id/presigned-upload` — для React-загрузок в MinIO.
 
 ## Документация и девлог
 

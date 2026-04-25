@@ -13,6 +13,7 @@ Public API:
 from __future__ import annotations
 
 import re
+import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -25,7 +26,17 @@ try:
     _snils_is_valid = _stdnum_snils.is_valid
 except (ImportError, AttributeError):
     def _snils_is_valid(number: str) -> bool:
-        return bool(re.fullmatch(r"\d{11}", number.replace("-", "").replace(" ", "")))
+        """Validate SNILS using Mod-101 checksum (ГОСТ Р 54471-2011)."""
+        digits = re.sub(r"\D", "", number)
+        if len(digits) != 11:
+            return False
+        body = [int(d) for d in digits[:9]]
+        checksum = int(digits[9:])
+        total = sum(body[i] * (9 - i) for i in range(9))
+        control = total % 101
+        if control >= 100:
+            control = 0
+        return control == checksum
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -277,14 +288,20 @@ _r(
     context=["паспорт", "серия", "серия и номер", "документ, удостоверяющий", "выдан", "гражданина"],
 )
 
+_BANK_CONTEXT = ["счет", "счёт", "р/с", "к/с", "л/с", "расчетный", "расчётный", "корреспондентский", "лицевой", "реквизиты"]
 _r("BIK", r"\b04\d{7}\b")
 _r(
     "BANK_ACCOUNT",
     r"(?<!\d)\d{20}(?!\d)",
     needs_context=True,
-    context=["счет", "счёт", "р/с", "к/с", "л/с", "расчетный", "расчётный", "корреспондентский", "лицевой", "реквизиты"],
+    context=_BANK_CONTEXT,
 )
-_r("BANK_ACCOUNT", r"\b\d{5} \d{3} \d{4} \d{4} \d{4}\b")
+_r(
+    "BANK_ACCOUNT",
+    r"\b\d{5} \d{3} \d{4} \d{4} \d{4}\b",
+    needs_context=True,
+    context=_BANK_CONTEXT,
+)
 _r("KPP", r"(?<!\d)\d{9}(?!\d)", needs_context=True, context=["кпп", "причина постановки"])
 _r("CADASTRAL", r"\b\d{2}:\d{2}:\d{6,7}:\d{1,6}\b")
 _r("PHONE_NUMBER", r"(?:\+7|8)[\s\-]?(?:\(\d{3}\)|\d{3})[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}")
@@ -492,7 +509,10 @@ class NatashaPipeline:
         win_start = max(0, start - _CONTEXT_WINDOW)
         win_end = min(len(text_lower), end + _CONTEXT_WINDOW)
         window = text_lower[win_start:win_end]
-        return any(w in window for w in ctx_words)
+        return any(
+            re.search(r"(?<!\w)" + re.escape(w) + r"(?!\w)", window)
+            for w in ctx_words
+        )
 
     @staticmethod
     def _dedup_spans(spans: list[Span]) -> list[Span]:
@@ -534,12 +554,15 @@ class NatashaPipeline:
 # ══════════════════════════════════════════════════════════════════════════════
 
 _pipeline: NatashaPipeline | None = None
+_pipeline_lock = threading.Lock()
 
 
 def _get_pipeline() -> NatashaPipeline:
     global _pipeline
     if _pipeline is None:
-        _pipeline = NatashaPipeline()
+        with _pipeline_lock:
+            if _pipeline is None:
+                _pipeline = NatashaPipeline()
     return _pipeline
 
 

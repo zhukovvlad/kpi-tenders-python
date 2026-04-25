@@ -5,13 +5,12 @@ MinIOClient is replaced with a MagicMock.
 """
 
 import json
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.storage.minio_client import MinIOClient, MinIOError
 from app.workers.anonymize import _handle
-
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -188,3 +187,24 @@ class TestHandleErrors:
         minio.upload.side_effect = MinIOError("S3 error")
         with pytest.raises(MinIOError):
             _handle(_md_bytes(), _STORAGE_PATH, minio)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Edge cases
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestHandleEdgeCases:
+    @patch("app.workers.anonymize.anonymize", return_value=(_ANON_RESULT[0], {}))
+    def test_empty_entities_map_uploads_empty_json(self, _mock):
+        minio = _make_minio()
+        _handle(_md_bytes(), _STORAGE_PATH, minio)
+        json_call = minio.upload.call_args_list[1]
+        uploaded_bytes = json_call[0][1]
+        assert json.loads(uploaded_bytes) == {}
+
+    @patch("app.workers.anonymize.anonymize", return_value=_ANON_RESULT)
+    def test_invalid_storage_path_raises(self, _mock):
+        minio = _make_minio()
+        with pytest.raises(MinIOError):
+            _handle(_md_bytes(), "nodslash", minio)

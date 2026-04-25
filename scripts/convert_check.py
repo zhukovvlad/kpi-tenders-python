@@ -11,7 +11,6 @@ Saves a .md file next to the source by default (use --no-save to skip).
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
