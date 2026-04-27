@@ -10,6 +10,8 @@ from app.storage.minio_client import MinIOClient
 log = logging.getLogger(__name__)
 
 # Permanent failures: retrying will not help, propagate immediately.
+# GoServerError (5xx) is intentionally excluded — Go being temporarily
+# unavailable is transient; Celery will re-queue the task with backoff.
 _NO_RETRY = (GoClientError, NotImplementedError, ValueError)
 
 

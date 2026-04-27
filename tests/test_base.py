@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.go_client.client import GoClientError
+from app.go_client.client import GoClientError, GoServerError
 from app.workers.base import run_document_task
 
 
@@ -62,14 +62,25 @@ def test_handler_failure_reports_failed_and_retries(mock_task, mock_go, mock_min
 
 
 def test_go_client_error_is_not_retried(mock_task, mock_go, mock_minio):
-    # Completed call raises GoClientError — should propagate without retry.
-    mock_go.update_task.side_effect = [None, GoClientError("go 500"), None]
+    # 4xx from Go — permanent failure, should propagate without retry.
+    mock_go.update_task.side_effect = [None, GoClientError("go 403"), None]
     handler = MagicMock(return_value={})
 
     with pytest.raises(GoClientError):
         run_document_task(mock_task, "t-1", "d-1", "tenders/f.docx", handler)
 
     mock_task.retry.assert_not_called()
+
+
+def test_go_server_error_is_retried(mock_task, mock_go, mock_minio):
+    # 5xx from Go — transient failure, Celery should re-queue the task.
+    mock_go.update_task.side_effect = [None, GoServerError("go 502"), None]
+    handler = MagicMock(return_value={})
+
+    with pytest.raises(RuntimeError, match="retried"):
+        run_document_task(mock_task, "t-1", "d-1", "tenders/f.docx", handler)
+
+    mock_task.retry.assert_called_once()
 
 
 def test_not_implemented_error_is_not_retried(mock_task, mock_go, mock_minio):

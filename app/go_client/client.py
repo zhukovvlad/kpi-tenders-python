@@ -18,7 +18,12 @@ _RETRYABLE = (httpx.NetworkError, httpx.TimeoutException, httpx.RemoteProtocolEr
 
 
 class GoClientError(Exception):
-    pass
+    """4xx response from Go — permanent failure, do not retry."""
+
+
+class GoServerError(Exception):
+    """5xx response from Go — transient failure, safe to retry."""
+
 
 
 class GoClient:
@@ -32,7 +37,9 @@ class GoClient:
         s = get_settings()
         self._base_url = (base_url or s.go_service_url).rstrip("/")
         self._token = s.service_token
-        self._client = httpx.Client(timeout=s.go_client_timeout)
+        # trust_env=False — ignore http_proxy / HTTP_PROXY env vars.
+        # The Go internal API is always local; routing through a proxy breaks it.
+        self._client = httpx.Client(timeout=s.go_client_timeout, trust_env=False)
 
     def close(self) -> None:
         self._client.close()
@@ -76,5 +83,7 @@ class GoClient:
         except _RETRYABLE:
             raise
 
+        if response.status_code >= 500:
+            raise GoServerError(f"go update_task failed: {response.status_code} {response.text}")
         if response.status_code >= 400:
             raise GoClientError(f"go update_task failed: {response.status_code} {response.text}")

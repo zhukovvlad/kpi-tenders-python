@@ -4,7 +4,7 @@ import httpx
 import pytest
 import respx
 
-from app.go_client.client import GoClient, GoClientError
+from app.go_client.client import GoClient, GoClientError, GoServerError
 
 BASE_URL = "http://go-test"
 TASK_URL = f"{BASE_URL}/internal/worker/tasks/task-1/status"
@@ -39,9 +39,9 @@ def test_update_task_raises_go_client_error_on_4xx(client):
 
 
 @respx.mock
-def test_update_task_raises_go_client_error_on_5xx(client):
-    respx.patch(TASK_URL).mock(return_value=httpx.Response(500, text="server error"))
-    with pytest.raises(GoClientError, match="500"):
+def test_update_task_raises_go_server_error_on_5xx(client):
+    respx.patch(TASK_URL).mock(return_value=httpx.Response(502, text="bad gateway"))
+    with pytest.raises(GoServerError, match="502"):
         client.update_task("task-1", "failed")
 
 
