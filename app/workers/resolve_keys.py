@@ -38,9 +38,13 @@ def _run_resolve_keys(
     """Lifecycle for resolve_keys: mark processing → call LLM → report result."""
     with GoClient() as go:
         try:
-            if not raw_questions:
+            if not isinstance(raw_questions, list) or not raw_questions:
                 raise ValueError(
-                    f"resolve_keys_task: raw_questions is empty for task_id={task_id!r}"
+                    f"resolve_keys_task: raw_questions must be a non-empty list for task_id={task_id!r}"
+                )
+            if not isinstance(existing_keys, list):
+                raise ValueError(
+                    f"resolve_keys_task: existing_keys must be a list for task_id={task_id!r}"
                 )
 
             go.update_task(

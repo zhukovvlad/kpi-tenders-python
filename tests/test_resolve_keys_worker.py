@@ -240,6 +240,29 @@ class TestResolveKeysFunction:
                 existing_keys=[],
             )
 
+    def test_invalid_key_name_from_llm_raises_value_error(self):
+        """_ResolvedKeyItem rejects key_name not matching ^[a-z][a-z0-9_]*$."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="key_name"):
+            _ResolvedKeyItem(
+                key_name="Total-Square",
+                source_query="Площадь?",
+                data_type="number",
+                is_new=True,
+            )
+
+    def test_digit_leading_key_name_from_llm_raises_value_error(self):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="key_name"):
+            _ResolvedKeyItem(
+                key_name="2bad",
+                source_query="Площадь?",
+                data_type="number",
+                is_new=True,
+            )
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # _run_resolve_keys — lifecycle tests (GoClient mocked)

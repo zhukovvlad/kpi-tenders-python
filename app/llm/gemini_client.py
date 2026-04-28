@@ -99,8 +99,10 @@ class GeminiClient:
             raise  # transient — let Celery retry
 
         if resp.parsed is None:
+            raw_preview = (resp.text or "")[:200]
             raise GeminiAPIError(
-                f"Gemini returned no parsed output for model={model!r}. Raw text: {resp.text!r}"
+                f"Gemini returned no parsed output for model={model!r}. "
+                f"Raw text preview: {raw_preview!r}"
             )
 
         return resp.parsed
