@@ -128,10 +128,10 @@ tests/                    — pytest + pytest-asyncio + respx
 
 ### LLM-слой (`app/llm/`)
 
-- `GeminiClient.generate(model, contents, response_schema, temperature=0.0)` — единая точка входа для Gemini API (Structured Outputs). Возвращает `response.parsed` (Pydantic-инстанс).
-- `GeminiAPIError(ValueError)` — постоянная ошибка (неверный ключ, недоступная модель). **Не ретраится** — наследует `ValueError`, попадает в `_NO_RETRY`.
+- `GeminiClient.generate(model, contents, response_schema, temperature=0.0)` — единая точка входа для Gemini API (Structured Outputs). Вызов через `response_json_schema=Schema.model_json_schema()`, ответ валидируется через `Schema.model_validate_json(resp.text)`.
+- `GeminiAPIError(ValueError)` — постоянная ошибка (неверный ключ, недоступная модель, ValidationError). **Не ретраится** — наследует `ValueError`, попадает в `_NO_RETRY`.
 - `get_client()` — создаёт новый `GeminiClient` per task invocation (не синглтон).
-- **Structured Outputs:** в `response_schema` передаётся Pydantic-класс напрямую. Для `extract` модель создаётся динамически через `pydantic.create_model()` из `extraction_schema` kwargs.
+- **Structured Outputs:** в `response_schema` передаётся Pydantic-класс. SDK сериализует его в JSON Schema через `model_json_schema()`. Для `extract` модель создаётся динамически через `pydantic.create_model()` из `extraction_schema` kwargs.
 - **Все поля `extract` — `str | None`**: суммы вида "1 500 000 руб." нельзя надёжно парсить во float; Go хранит всё как текст.
 
 ### Кастомный lifecycle для `resolve_keys`
@@ -215,8 +215,8 @@ make ci               # format + check + test (перед push)
 - `REDIS_URL` — брокер Celery.
 - `MINIO_*` — креды MinIO из docker-compose Go-сервиса.
 - `GEMINI_API_KEY` — нужен для `resolve_keys` (Gemini Flash), `extract` (Gemini Pro) и `parse_invoice` (PDF).
-- `GEMINI_LIGHT_MODEL` — модель для `resolve_keys`, дефолт `gemini-2.0-flash`.
-- `GEMINI_HEAVY_MODEL` — модель для `extract`, дефолт `gemini-2.5-pro`.
+- `GEMINI_LIGHT_MODEL` — модель для `resolve_keys`, дефолт `gemini-2.5-flash`.
+- `GEMINI_HEAVY_MODEL` — модель для `extract`, дефолт `gemini-3.1-pro-preview`.
 
 ## Что НЕ делает Python
 

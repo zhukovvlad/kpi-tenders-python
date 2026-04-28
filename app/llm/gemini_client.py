@@ -15,10 +15,13 @@ Exception (any other)
 """
 
 import logging
+import os
 from typing import Any
 
+import httpx
 from google import genai
-from google.genai import types
+from google.genai.types import HttpOptions
+from pydantic import ValidationError
 
 from app.config import get_settings
 
@@ -33,7 +36,14 @@ class GeminiClient:
     """Lightweight wrapper around ``genai.Client`` with structured-output support."""
 
     def __init__(self, api_key: str) -> None:
-        self._client = genai.Client(api_key=api_key)
+        proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+        http_options: HttpOptions | None = None
+        if proxy_url:
+            http_options = HttpOptions(
+                httpx_client=httpx.Client(proxy=proxy_url, follow_redirects=True)
+            )
+            log.debug("GeminiClient: using proxy %s", proxy_url)
+        self._client = genai.Client(api_key=api_key, http_options=http_options)
 
     def generate(
         self,
@@ -48,12 +58,13 @@ class GeminiClient:
         Parameters
         ----------
         model:
-            Gemini model name, e.g. ``"gemini-2.0-flash"``.
+            Gemini model name, e.g. ``"gemini-2.5-flash"``.
         contents:
             Prompt string sent to the model.
         response_schema:
-            A Pydantic ``BaseModel`` class. The SDK enforces the schema via
-            ``response_mime_type="application/json"`` + ``response_schema``.
+            A Pydantic ``BaseModel`` class. Its JSON schema is sent via
+            ``response_json_schema``; the response text is validated with
+            ``model_validate_json``.
         temperature:
             Sampling temperature. 0.0 for deterministic extraction.
 
@@ -73,11 +84,11 @@ class GeminiClient:
             resp = self._client.models.generate_content(
                 model=model,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=response_schema,
-                    temperature=temperature,
-                ),
+                config={
+                    "response_mime_type": "application/json",
+                    "response_json_schema": response_schema.model_json_schema(),
+                    "temperature": temperature,
+                },
             )
         except Exception as exc:
             # Classify permanent vs transient failures.
@@ -98,14 +109,17 @@ class GeminiClient:
                 raise GeminiAPIError(f"Permanent Gemini error: {exc}") from exc
             raise  # transient — let Celery retry
 
-        if resp.parsed is None:
-            raw_preview = (resp.text or "")[:200]
-            raise GeminiAPIError(
-                f"Gemini returned no parsed output for model={model!r}. "
-                f"Raw text preview: {raw_preview!r}"
-            )
+        raw = resp.text or ""
+        if not raw.strip():
+            raise GeminiAPIError(f"Gemini returned empty response for model={model!r}")
 
-        return resp.parsed
+        try:
+            return response_schema.model_validate_json(raw)
+        except ValidationError as exc:
+            raise GeminiAPIError(
+                f"Gemini response does not match expected schema for model={model!r}. "
+                f"Raw preview: {raw[:200]!r}"
+            ) from exc
 
 
 def get_client() -> GeminiClient:

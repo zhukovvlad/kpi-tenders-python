@@ -40,8 +40,8 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_api_key: str = ""
-    gemini_light_model: str = "gemini-2.0-flash"
-    gemini_heavy_model: str = "gemini-2.5-pro"
+    gemini_light_model: str = "gemini-2.5-flash"
+    gemini_heavy_model: str = "gemini-3.1-pro-preview"
 
 
 @lru_cache
