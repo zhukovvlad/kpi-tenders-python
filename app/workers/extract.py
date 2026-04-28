@@ -37,7 +37,12 @@ def _handle(
         )
     document_text = file_bytes.decode("utf-8")
     client = get_client()
-    return extract_values(client, document_text=document_text, extraction_schema=extraction_schema)
+    try:
+        return extract_values(
+            client, document_text=document_text, extraction_schema=extraction_schema
+        )
+    finally:
+        client.close()
 
 
 @celery_app.task(

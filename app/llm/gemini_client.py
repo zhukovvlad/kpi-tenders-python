@@ -17,6 +17,7 @@ Exception (any other)
 import logging
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from google import genai
@@ -37,13 +38,20 @@ class GeminiClient:
 
     def __init__(self, api_key: str) -> None:
         proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+        self._httpx_client: httpx.Client | None = None
         http_options: HttpOptions | None = None
         if proxy_url:
-            http_options = HttpOptions(
-                httpx_client=httpx.Client(proxy=proxy_url, follow_redirects=True)
-            )
-            log.debug("GeminiClient: using proxy %s", proxy_url)
+            self._httpx_client = httpx.Client(proxy=proxy_url, follow_redirects=True)
+            http_options = HttpOptions(httpx_client=self._httpx_client)
+            parsed = urlparse(proxy_url)
+            log.debug("GeminiClient: using proxy %s://%s", parsed.scheme, parsed.hostname)
         self._client = genai.Client(api_key=api_key, http_options=http_options)
+
+    def close(self) -> None:
+        """Close any owned network resources."""
+        if self._httpx_client is not None:
+            self._httpx_client.close()
+            self._httpx_client = None
 
     def generate(
         self,

@@ -81,6 +81,9 @@ def main() -> None:
         if not isinstance(existing_keys, list):
             print("[ERROR] existing keys file must contain a JSON array", file=sys.stderr)
             sys.exit(1)
+        if not all(isinstance(k, dict) for k in existing_keys):
+            print("[ERROR] each element in existing keys must be a JSON object", file=sys.stderr)
+            sys.exit(1)
 
     print("─" * 60)
     print(f"Questions ({len(raw_questions)}):")
