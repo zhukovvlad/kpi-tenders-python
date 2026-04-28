@@ -117,6 +117,15 @@ class TestBuildExtractionModel:
         with pytest.raises(ValueError, match="data_type must be a string"):
             _build_extraction_model([{"key_name": "total_square", "data_type": 42}])  # type: ignore[dict-item]
 
+    def test_duplicate_key_name_raises_value_error(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            _build_extraction_model(
+                [
+                    {"key_name": "total_square", "data_type": "string"},
+                    {"key_name": "total_square", "data_type": "number"},
+                ]
+            )
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # extract_llm.extract_values — pure function

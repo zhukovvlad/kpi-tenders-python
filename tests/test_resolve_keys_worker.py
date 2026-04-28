@@ -171,7 +171,9 @@ class TestResolveKeysFunction:
             resolve_keys(
                 client,
                 raw_questions=["q"],
-                existing_keys=[{"key_name": "k", "data_type": 123}],  # type: ignore[dict-item]
+                existing_keys=[
+                    {"key_name": "k", "source_query": "s", "data_type": 123}  # type: ignore[dict-item]
+                ],
             )
 
     def test_string_instead_of_list_existing_keys_raises_value_error(self):

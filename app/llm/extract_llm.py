@@ -63,6 +63,8 @@ def _build_extraction_model(
             raise ValueError(
                 f"extraction_schema[{index}].key_name {key!r} is not a valid Python identifier"
             )
+        if key in fields:
+            raise ValueError(f"extraction_schema[{index}].key_name {key!r} is a duplicate")
         data_type = entry.get("data_type", "string")
         if not isinstance(data_type, str):
             raise ValueError(
