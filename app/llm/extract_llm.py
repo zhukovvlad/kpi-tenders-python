@@ -20,9 +20,9 @@ like ``<ORGANIZATION_1>`` verbatim.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import BaseModel, create_model, Field
+from pydantic import BaseModel, Field, create_model
 
 from app.config import get_settings
 from app.llm.gemini_client import GeminiClient
@@ -31,10 +31,10 @@ log = logging.getLogger(__name__)
 
 # ── Dynamic schema builder ────────────────────────────────────────────────────
 
-_FIELD_TYPE: dict[str, type] = {
-    "string": Optional[str],
-    "number": Optional[str],   # keep as string — LLM may return "5 400 м²" etc.
-    "date": Optional[str],
+_FIELD_TYPE: dict[str, Any] = {
+    "string": str | None,
+    "number": str | None,  # keep as string — LLM may return "5 400 м²" etc.
+    "date": str | None,
 }
 
 
@@ -44,17 +44,23 @@ def _build_extraction_model(
     """Dynamically create a Pydantic model from the extraction_schema list.
 
     All fields default to ``None`` (Gemini returns ``null`` when not found).
-    We use ``Optional[str]`` for all types: Go stores everything as text and
+    We use ``str | None`` for all types: Go stores everything as text and
     numeric formatting from Russian contracts is too inconsistent for float.
     """
     if not extraction_schema:
         raise ValueError("extraction_schema must not be empty")
 
     fields: dict[str, Any] = {}
-    for entry in extraction_schema:
-        key = entry["key_name"]
+    for index, entry in enumerate(extraction_schema):
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"extraction_schema[{index}] must be a dict, got {type(entry).__name__}"
+            )
+        key = entry.get("key_name")
+        if not isinstance(key, str) or not key:
+            raise ValueError(f"extraction_schema[{index}].key_name must be a non-empty string")
         data_type = entry.get("data_type", "string")
-        py_type = _FIELD_TYPE.get(data_type, Optional[str])
+        py_type = _FIELD_TYPE.get(data_type, str | None)
         fields[key] = (py_type, Field(default=None))
 
     return create_model("ExtractionResult", **fields)
@@ -82,8 +88,7 @@ def _build_prompt(
     extraction_schema: list[dict[str, str]],
 ) -> str:
     schema_lines = "\n".join(
-        f"  - {e['key_name']} ({e.get('data_type', 'string')})"
-        for e in extraction_schema
+        f"  - {e['key_name']} ({e.get('data_type', 'string')})" for e in extraction_schema
     )
     return (
         f"{_SYSTEM_PROMPT}\n\n"

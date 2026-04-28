@@ -100,8 +100,7 @@ class GeminiClient:
 
         if resp.parsed is None:
             raise GeminiAPIError(
-                f"Gemini returned no parsed output for model={model!r}. "
-                f"Raw text: {resp.text!r}"
+                f"Gemini returned no parsed output for model={model!r}. Raw text: {resp.text!r}"
             )
 
         return resp.parsed
@@ -116,7 +115,6 @@ def get_client() -> GeminiClient:
     settings = get_settings()
     if not settings.gemini_api_key:
         raise GeminiAPIError(
-            "GEMINI_API_KEY is not set. "
-            "Set it in .env or environment before running LLM workers."
+            "GEMINI_API_KEY is not set. Set it in .env or environment before running LLM workers."
         )
     return GeminiClient(api_key=settings.gemini_api_key)

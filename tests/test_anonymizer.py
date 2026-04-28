@@ -184,7 +184,9 @@ class TestRegexEntities:
         assert "ORGANIZATION" in types
 
     def test_detects_cadastral(self, pipeline):
-        types = {s.entity_type for s in pipeline._regex_entities("кадастровый номер 77:06:0004006:100")}
+        types = {
+            s.entity_type for s in pipeline._regex_entities("кадастровый номер 77:06:0004006:100")
+        }
         assert "CADASTRAL" in types
 
     def test_detects_fio_lastname_initials(self, pipeline):

@@ -136,9 +136,7 @@ def resolve_keys(
     resolved_schema: list[dict[str, str]] = []
 
     for item in llm_response.keys:
-        resolved_schema.append(
-            {"key_name": item.key_name, "data_type": item.data_type}
-        )
+        resolved_schema.append({"key_name": item.key_name, "data_type": item.data_type})
         if item.is_new:
             new_keys.append(
                 {

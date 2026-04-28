@@ -2,8 +2,6 @@
 
 Kwargs contract (set by ``service_worker.go::triggerExtract``):
     extraction_schema : list[dict]  — [{"key_name": str, "data_type": str}, ...]
-    md_document_id    : str         — UUID of the anonymised MD artifact doc in Go DB
-                                      (passed through to result_payload for Go tracing)
 
 The ``storage_path`` positional arg points to the anonymised Markdown file in
 MinIO (Go sets ``input_storage_path = mdDoc.StoragePath``). The extract worker
@@ -19,7 +17,7 @@ from typing import Any
 
 from app.celery_app import celery_app
 from app.llm.extract_llm import extract_values
-from app.llm.gemini_client import GeminiAPIError, get_client
+from app.llm.gemini_client import get_client
 from app.storage.minio_client import MinIOClient
 from app.workers.base import run_document_task
 
@@ -60,7 +58,6 @@ def extract_task(
 
     Keyword args:
         extraction_schema : list[dict]  — keys to extract
-        md_document_id    : str         — MD artifact UUID (passed through for Go)
     """
     extraction_schema: list[dict] = kwargs.get("extraction_schema") or []
 

@@ -4,7 +4,7 @@
 
 AI-воркер SaaS-платформы для анализа тендерной документации. Python-сервис обрабатывает документы (DOCX/XLSX/PDF) и возвращает структурированные результаты в Go-бэкенд.
 
-**Stack:** Python 3.12, FastAPI, Celery 5.x, Redis 7, MinIO, PostgreSQL 16 + pgvector, Gemini (google-genai), Natasha + Presidio (NER). Тулинг: ruff (format + lint), pytest + pytest-cov, Flower.
+**Stack:** Python 3.12, FastAPI, Celery 5.x, Redis 7, MinIO, PostgreSQL 16 + pgvector, Gemini (google-genai), Natasha (NER). Тулинг: ruff (format + lint), pytest + pytest-cov, Flower.
 
 ## Место в системе
 
@@ -104,7 +104,7 @@ tests/                    — pytest + pytest-asyncio + respx
 | Очередь | Задачи | Профиль | Дефолт concurrency |
 |---|---|---|---|
 | `io` | `convert`, `parse_invoice` | I/O-bound (docx/xlsx/pdf parsing) | 4 |
-| `llm` | `anonymize`, `resolve_keys`, `extract` | CPU+LLM (Gemini, Natasha, Presidio) | 2 |
+| `llm` | `anonymize`, `resolve_keys`, `extract` | CPU+LLM (Gemini, Natasha) | 2 |
 
 `task_default_queue=io`. В dev можно поднять единый воркер на обе очереди (`make worker`), в prod-like разнести (`make worker-io` + `make worker-llm`) чтобы долгие LLM-задачи не блокировали быстрый парсинг.
 
@@ -132,14 +132,14 @@ tests/                    — pytest + pytest-asyncio + respx
 - `GeminiAPIError(ValueError)` — постоянная ошибка (неверный ключ, недоступная модель). **Не ретраится** — наследует `ValueError`, попадает в `_NO_RETRY`.
 - `get_client()` — создаёт новый `GeminiClient` per task invocation (не синглтон).
 - **Structured Outputs:** в `response_schema` передаётся Pydantic-класс напрямую. Для `extract` модель создаётся динамически через `pydantic.create_model()` из `extraction_schema` kwargs.
-- **Все поля `extract` — `Optional[str]`**: суммы вида "1 500 000 руб." нельзя надёжно парсить во float; Go хранит всё как текст.
+- **Все поля `extract` — `str | None`**: суммы вида "1 500 000 руб." нельзя надёжно парсить во float; Go хранит всё как текст.
 
 ### Кастомный lifecycle для `resolve_keys`
 
 `resolve_keys_task` не скачивает файлы из MinIO — все входные данные в kwargs. Lifecycle реализован в `_run_resolve_keys()` напрямую (не через `run_document_task`):
 
 1. `go.update_task(status="processing")`
-2. `resolve_keys(client, raw_questions=..., existing_keys=..., md_document_id=...)`
+2. `resolve_keys(client, raw_questions=..., existing_keys=...)`
 3. `go.update_task(status="completed", result_payload=...)`
 
 Kwargs: `raw_questions: list[str]`, `existing_keys: list[dict]`. Go не передаёт `md_document_id` — это не нужно. Go сам знает, какой документ отдать на `extract` после получения `result_payload`.
@@ -199,6 +199,7 @@ make test-cov         # с coverage (html + term)
 make format           # ruff format + ruff check --fix
 make lint             # ruff check
 make check            # ruff --check без записи
+make ci               # format + check + test (перед push)
 ```
 
 Инфраструктура (Postgres, Redis, MinIO) поднимается из `go-kpi-tenders/docker-compose.yml`.

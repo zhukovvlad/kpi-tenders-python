@@ -93,6 +93,18 @@ class TestBuildExtractionModel:
         instance = model_cls(weird_field="value")
         assert instance.weird_field == "value"
 
+    def test_non_dict_entry_raises_value_error(self):
+        with pytest.raises(ValueError, match="must be a dict"):
+            _build_extraction_model(["not_a_dict"])
+
+    def test_missing_key_name_raises_value_error(self):
+        with pytest.raises(ValueError, match="key_name"):
+            _build_extraction_model([{"data_type": "string"}])
+
+    def test_empty_key_name_raises_value_error(self):
+        with pytest.raises(ValueError, match="key_name"):
+            _build_extraction_model([{"key_name": "", "data_type": "string"}])
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # extract_llm.extract_values — pure function
@@ -101,11 +113,13 @@ class TestBuildExtractionModel:
 
 class TestExtractValues:
     def test_returns_flat_dict_with_extracted_values(self):
-        pydantic_result = _make_pydantic_result({
-            "total_square": "5 400 м²",
-            "advance_payment": None,
-            "deadline_date": "31.12.2025",
-        })
+        pydantic_result = _make_pydantic_result(
+            {
+                "total_square": "5 400 м²",
+                "advance_payment": None,
+                "deadline_date": "31.12.2025",
+            }
+        )
         client = _make_gemini_client(pydantic_result)
 
         with patch("app.llm.extract_llm.get_settings") as mock_settings:
@@ -117,11 +131,13 @@ class TestExtractValues:
         assert result["deadline_date"] == "31.12.2025"
 
     def test_null_values_are_none_in_result(self):
-        pydantic_result = _make_pydantic_result({
-            "total_square": None,
-            "advance_payment": None,
-            "deadline_date": None,
-        })
+        pydantic_result = _make_pydantic_result(
+            {
+                "total_square": None,
+                "advance_payment": None,
+                "deadline_date": None,
+            }
+        )
         client = _make_gemini_client(pydantic_result)
 
         with patch("app.llm.extract_llm.get_settings") as mock_settings:
@@ -131,11 +147,13 @@ class TestExtractValues:
         assert all(v is None for v in result.values())
 
     def test_all_schema_keys_present_in_result(self):
-        pydantic_result = _make_pydantic_result({
-            "total_square": "5400",
-            "advance_payment": "30%",
-            "deadline_date": "31.12.2025",
-        })
+        pydantic_result = _make_pydantic_result(
+            {
+                "total_square": "5400",
+                "advance_payment": "30%",
+                "deadline_date": "31.12.2025",
+            }
+        )
         client = _make_gemini_client(pydantic_result)
 
         with patch("app.llm.extract_llm.get_settings") as mock_settings:
@@ -146,7 +164,9 @@ class TestExtractValues:
             assert entry["key_name"] in result
 
     def test_gemini_called_with_correct_model(self):
-        pydantic_result = _make_pydantic_result({"total_square": None, "advance_payment": None, "deadline_date": None})
+        pydantic_result = _make_pydantic_result(
+            {"total_square": None, "advance_payment": None, "deadline_date": None}
+        )
         client = _make_gemini_client(pydantic_result)
 
         with patch("app.llm.extract_llm.get_settings") as mock_settings:
@@ -167,7 +187,9 @@ class TestExtractValues:
             extract_values(client, document_text=_DOCUMENT_TEXT, extraction_schema=[])
 
     def test_anonymised_tags_preserved_in_prompt(self):
-        pydantic_result = _make_pydantic_result({"total_square": None, "advance_payment": None, "deadline_date": None})
+        pydantic_result = _make_pydantic_result(
+            {"total_square": None, "advance_payment": None, "deadline_date": None}
+        )
         client = _make_gemini_client(pydantic_result)
 
         doc_with_tags = "Заказчик: <ORGANIZATION_1>. Сумма: 1 000 руб."
@@ -187,12 +209,16 @@ class TestExtractValues:
 
 class TestExtractHandle:
     def test_decodes_bytes_and_returns_extraction_result(self):
-        pydantic_result = _make_pydantic_result({"total_square": "5400", "advance_payment": None, "deadline_date": None})
+        pydantic_result = _make_pydantic_result(
+            {"total_square": "5400", "advance_payment": None, "deadline_date": None}
+        )
         client = _make_gemini_client(pydantic_result)
         minio = _make_minio()
 
-        with patch("app.workers.extract.get_client", return_value=client), \
-             patch("app.llm.extract_llm.get_settings") as mock_settings:
+        with (
+            patch("app.workers.extract.get_client", return_value=client),
+            patch("app.llm.extract_llm.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.gemini_heavy_model = "gemini-2.5-pro"
             result = _handle(
                 _DOCUMENT_TEXT.encode("utf-8"),
@@ -205,14 +231,18 @@ class TestExtractHandle:
         assert result["advance_payment"] is None
 
     def test_utf8_document_decoded_correctly(self):
-        pydantic_result = _make_pydantic_result({"total_square": None, "advance_payment": None, "deadline_date": None})
+        pydantic_result = _make_pydantic_result(
+            {"total_square": None, "advance_payment": None, "deadline_date": None}
+        )
         client = _make_gemini_client(pydantic_result)
         minio = _make_minio()
 
         russian_text = "Площадь: 5 400 м²."
 
-        with patch("app.workers.extract.get_client", return_value=client), \
-             patch("app.llm.extract_llm.get_settings") as mock_settings:
+        with (
+            patch("app.workers.extract.get_client", return_value=client),
+            patch("app.llm.extract_llm.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.gemini_heavy_model = "gemini-2.5-pro"
             _handle(russian_text.encode("utf-8"), _STORAGE_PATH, minio, _SCHEMA)
 
@@ -230,6 +260,7 @@ class TestExtractTaskValidation:
 
     ``.run()`` is already bound (Celery bind=True), no explicit self needed.
     """
+
     def test_missing_extraction_schema_raises_value_error(self):
         with pytest.raises(ValueError, match="extraction_schema"):
             extract_task.run(
@@ -265,12 +296,16 @@ class TestExtractTaskValidation:
             captured["result"] = handler(b"text", sp, MagicMock(spec=MinIOClient))
             return captured["result"]
 
-        pydantic_result = _make_pydantic_result({"total_square": "42", "advance_payment": None, "deadline_date": None})
+        pydantic_result = _make_pydantic_result(
+            {"total_square": "42", "advance_payment": None, "deadline_date": None}
+        )
         mock_client = _make_gemini_client(pydantic_result)
 
-        with patch("app.workers.extract.run_document_task", side_effect=fake_run), \
-             patch("app.workers.extract.get_client", return_value=mock_client), \
-             patch("app.llm.extract_llm.get_settings") as mock_settings:
+        with (
+            patch("app.workers.extract.run_document_task", side_effect=fake_run),
+            patch("app.workers.extract.get_client", return_value=mock_client),
+            patch("app.llm.extract_llm.get_settings") as mock_settings,
+        ):
             mock_settings.return_value.gemini_heavy_model = "gemini-2.5-pro"
             extract_task.run(
                 _TASK_ID,

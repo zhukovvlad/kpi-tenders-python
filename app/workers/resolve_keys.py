@@ -68,9 +68,7 @@ def _run_resolve_keys(
                     error_message=str(exc),
                 )
             except Exception:
-                log.exception(
-                    "resolve_keys: failed to report failure to Go for task %s", task_id
-                )
+                log.exception("resolve_keys: failed to report failure to Go for task %s", task_id)
 
             if isinstance(exc, _NO_RETRY):
                 raise
@@ -105,9 +103,7 @@ def resolve_keys_task(
     existing_keys: list[dict] = kwargs.get("existing_keys") or []
 
     if not raw_questions:
-        raise ValueError(
-            f"resolve_keys_task: raw_questions is empty for task_id={task_id!r}"
-        )
+        raise ValueError(f"resolve_keys_task: raw_questions is empty for task_id={task_id!r}")
 
     return _run_resolve_keys(
         self,

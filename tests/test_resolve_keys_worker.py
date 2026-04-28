@@ -12,12 +12,12 @@ Tests cover:
 4. LLM response conversion (is_new splits into new_keys vs existing)
 """
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.llm.gemini_client import GeminiAPIError
-from app.llm.resolve_keys_llm import _ResolveKeysResponse, _ResolvedKeyItem, resolve_keys
+from app.llm.resolve_keys_llm import _ResolvedKeyItem, _ResolveKeysResponse, resolve_keys
 from app.workers.resolve_keys import _run_resolve_keys, resolve_keys_task
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -82,10 +82,12 @@ def _make_celery_task() -> MagicMock:
 class TestResolveKeysFunction:
     def test_returns_new_keys_for_new_questions(self):
         client = _make_gemini_client(
-            _make_llm_response([
-                ("total_square", _RAW_QUESTIONS[0], "number", True),
-                ("advance_payment", _RAW_QUESTIONS[1], "number", True),
-            ])
+            _make_llm_response(
+                [
+                    ("total_square", _RAW_QUESTIONS[0], "number", True),
+                    ("advance_payment", _RAW_QUESTIONS[1], "number", True),
+                ]
+            )
         )
         result = resolve_keys(
             client,
@@ -98,9 +100,11 @@ class TestResolveKeysFunction:
 
     def test_existing_keys_not_in_new_keys(self):
         client = _make_gemini_client(
-            _make_llm_response([
-                ("contract_value", _RAW_QUESTIONS[0], "number", False),
-            ])
+            _make_llm_response(
+                [
+                    ("contract_value", _RAW_QUESTIONS[0], "number", False),
+                ]
+            )
         )
         result = resolve_keys(
             client,
@@ -111,10 +115,12 @@ class TestResolveKeysFunction:
 
     def test_resolved_schema_contains_all_keys(self):
         client = _make_gemini_client(
-            _make_llm_response([
-                ("contract_value", _RAW_QUESTIONS[0], "number", False),
-                ("total_square", _RAW_QUESTIONS[1], "number", True),
-            ])
+            _make_llm_response(
+                [
+                    ("contract_value", _RAW_QUESTIONS[0], "number", False),
+                    ("total_square", _RAW_QUESTIONS[1], "number", True),
+                ]
+            )
         )
         result = resolve_keys(
             client,
@@ -126,9 +132,7 @@ class TestResolveKeysFunction:
         assert "total_square" in key_names
 
     def test_result_has_no_md_document_id(self):
-        client = _make_gemini_client(
-            _make_llm_response([("k", "q", "string", True)])
-        )
+        client = _make_gemini_client(_make_llm_response([("k", "q", "string", True)]))
         result = resolve_keys(
             client,
             raw_questions=["q"],
@@ -142,9 +146,7 @@ class TestResolveKeysFunction:
             resolve_keys(client, raw_questions=[], existing_keys=[])
 
     def test_resolved_schema_entry_has_key_name_and_data_type(self):
-        client = _make_gemini_client(
-            _make_llm_response([("deadline_date", "q", "date", True)])
-        )
+        client = _make_gemini_client(_make_llm_response([("deadline_date", "q", "date", True)]))
         result = resolve_keys(
             client,
             raw_questions=["q"],
@@ -155,9 +157,7 @@ class TestResolveKeysFunction:
         assert "data_type" in schema_entry
 
     def test_new_key_entry_has_source_query(self):
-        client = _make_gemini_client(
-            _make_llm_response([("total_sq", "Площадь?", "number", True)])
-        )
+        client = _make_gemini_client(_make_llm_response([("total_sq", "Площадь?", "number", True)]))
         result = resolve_keys(
             client,
             raw_questions=["Площадь?"],
@@ -210,22 +210,31 @@ class TestRunResolveKeys:
         task = _make_celery_task()
         payload = {"new_keys": [], "resolved_schema": []}
 
-        with self._patch_go(go_ctx), self._patch_client(MagicMock()), self._patch_resolve_keys(payload):
+        with (
+            self._patch_go(go_ctx),
+            self._patch_client(MagicMock()),
+            self._patch_resolve_keys(payload),
+        ):
             _run_resolve_keys(task, _TASK_ID, _RAW_QUESTIONS, _EXISTING_KEYS)
 
         go.update_task.assert_any_call(
             task_id=_TASK_ID, status="processing", celery_task_id="celery-task-abc"
         )
-        go.update_task.assert_any_call(
-            task_id=_TASK_ID, status="completed", result_payload=payload
-        )
+        go.update_task.assert_any_call(task_id=_TASK_ID, status="completed", result_payload=payload)
 
     def test_returns_result_payload(self):
         go_ctx, _ = _make_go_client()
         task = _make_celery_task()
-        payload = {"new_keys": [{"key_name": "k", "source_query": "q", "data_type": "string"}], "resolved_schema": []}
+        payload = {
+            "new_keys": [{"key_name": "k", "source_query": "q", "data_type": "string"}],
+            "resolved_schema": [],
+        }
 
-        with self._patch_go(go_ctx), self._patch_client(MagicMock()), self._patch_resolve_keys(payload):
+        with (
+            self._patch_go(go_ctx),
+            self._patch_client(MagicMock()),
+            self._patch_resolve_keys(payload),
+        ):
             result = _run_resolve_keys(task, _TASK_ID, _RAW_QUESTIONS, _EXISTING_KEYS)
 
         assert result == payload
@@ -234,10 +243,13 @@ class TestRunResolveKeys:
         go_ctx, go = _make_go_client()
         task = _make_celery_task()
 
-        with self._patch_go(go_ctx), self._patch_client(MagicMock()), \
-             patch("app.workers.resolve_keys.resolve_keys", side_effect=GeminiAPIError("bad key")):
-            with pytest.raises(GeminiAPIError):
-                _run_resolve_keys(task, _TASK_ID, _RAW_QUESTIONS, _EXISTING_KEYS)
+        with (
+            self._patch_go(go_ctx),
+            self._patch_client(MagicMock()),
+            patch("app.workers.resolve_keys.resolve_keys", side_effect=GeminiAPIError("bad key")),
+            pytest.raises(GeminiAPIError),
+        ):
+            _run_resolve_keys(task, _TASK_ID, _RAW_QUESTIONS, _EXISTING_KEYS)
 
         go.update_task.assert_called_with(
             task_id=_TASK_ID, status="failed", error_message="bad key"
@@ -248,10 +260,13 @@ class TestRunResolveKeys:
         go_ctx, go = _make_go_client()
         task = _make_celery_task()
 
-        with self._patch_go(go_ctx), self._patch_client(MagicMock()), \
-             patch("app.workers.resolve_keys.resolve_keys", side_effect=ConnectionError("network")):
-            with pytest.raises(RuntimeError, match="retried"):
-                _run_resolve_keys(task, _TASK_ID, _RAW_QUESTIONS, _EXISTING_KEYS)
+        with (
+            self._patch_go(go_ctx),
+            self._patch_client(MagicMock()),
+            patch("app.workers.resolve_keys.resolve_keys", side_effect=ConnectionError("network")),
+            pytest.raises(RuntimeError, match="retried"),
+        ):
+            _run_resolve_keys(task, _TASK_ID, _RAW_QUESTIONS, _EXISTING_KEYS)
 
         task.retry.assert_called_once()
 
