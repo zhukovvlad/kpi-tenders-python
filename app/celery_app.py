@@ -11,6 +11,7 @@ celery_app = Celery(
     include=[
         "app.workers.convert",
         "app.workers.anonymize",
+        "app.workers.resolve_keys",
         "app.workers.extract",
         "app.workers.parse_invoice",
     ],
@@ -34,6 +35,7 @@ celery_app.conf.update(
         "app.workers.convert.convert_task": {"queue": "io"},
         "app.workers.parse_invoice.parse_invoice_task": {"queue": "io"},
         "app.workers.anonymize.anonymize_task": {"queue": "llm"},
+        "app.workers.resolve_keys.resolve_keys_task": {"queue": "llm"},
         "app.workers.extract.extract_task": {"queue": "llm"},
     },
 )
