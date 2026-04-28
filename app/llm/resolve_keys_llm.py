@@ -183,6 +183,8 @@ def resolve_keys(
             "Gemini may have merged or dropped questions."
         )
 
+    existing_keys_by_name: dict[str, dict[str, str]] = {k["key_name"]: k for k in existing_keys}
+
     new_keys: list[dict[str, str]] = []
     resolved_schema: list[dict[str, str]] = []
     seen_resolved: set[str] = set()
@@ -192,7 +194,13 @@ def resolve_keys(
 
     for item in llm_response.keys:
         if item.key_name not in seen_resolved:
-            resolved_schema.append({"key_name": item.key_name, "data_type": item.data_type})
+            # Prefer existing data_type over LLM-provided to prevent drift
+            data_type = (
+                existing_keys_by_name[item.key_name]["data_type"]
+                if item.key_name in existing_keys_by_name
+                else item.data_type
+            )
+            resolved_schema.append({"key_name": item.key_name, "data_type": data_type})
             seen_resolved.add(item.key_name)
         else:
             skipped_resolved += 1

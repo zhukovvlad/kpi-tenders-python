@@ -1,9 +1,10 @@
 """Celery task: resolve_keys — semantic key mapping via Gemini Flash.
 
 This task does NOT download any file from MinIO. It only:
-1. Marks the task as ``processing`` in Go.
-2. Calls Gemini Flash to map user questions → extraction keys.
-3. Reports ``completed`` with the resolved schema back to Go.
+1. Validates ``raw_questions`` and ``existing_keys`` kwargs (fail-fast before any Go call).
+2. Marks the task as ``processing`` in Go.
+3. Calls Gemini Flash to map user questions → extraction keys.
+4. Reports ``completed`` with the resolved schema back to Go.
 
 Go then chains to the ``extract`` task using the ``resolved_schema``
 from this task's ``result_payload``.
@@ -93,23 +94,23 @@ def _run_resolve_keys(
 def resolve_keys_task(
     self,
     task_id: str,
-    document_id: str,
-    storage_path: str,
+    _document_id: str,
+    _storage_path: str,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Celery entry-point for the resolve_keys module.
 
     Positional args (from Celery v2 message):
         task_id      : Go ``document_tasks.id`` UUID string
-        document_id  : Go ``documents.id`` UUID string (original document)
-        storage_path : Original document path in MinIO (not used — no file download)
+        _document_id : Go ``documents.id`` — not used (no file download)
+        _storage_path: Original document path in MinIO — not used (no file download)
 
     Keyword args (from ``Kwargs`` in the Go Celery message):
         raw_questions  : list[str]
         existing_keys  : list[dict]
     """
     raw_questions: list[str] = kwargs.get("raw_questions") or []
-    existing_keys: list[dict] = kwargs.get("existing_keys") or []
+    existing_keys: list[dict] = kwargs.get("existing_keys", [])
 
     return _run_resolve_keys(
         self,

@@ -87,11 +87,9 @@ class TestBuildExtractionModel:
         with pytest.raises(ValueError, match="extraction_schema"):
             _build_extraction_model([])
 
-    def test_unknown_data_type_defaults_to_optional_str(self):
-        schema = [{"key_name": "weird_field", "data_type": "unknown_type"}]
-        model_cls = _build_extraction_model(schema)
-        instance = model_cls(weird_field="value")
-        assert instance.weird_field == "value"
+    def test_unknown_data_type_raises_value_error(self):
+        with pytest.raises(ValueError, match="is not supported"):
+            _build_extraction_model([{"key_name": "weird_field", "data_type": "unknown_type"}])
 
     def test_non_dict_entry_raises_value_error(self):
         with pytest.raises(ValueError, match="must be a dict"):
@@ -234,7 +232,6 @@ class TestExtractHandle:
             {"total_square": "5400", "advance_payment": None, "deadline_date": None}
         )
         client = _make_gemini_client(pydantic_result)
-        minio = _make_minio()
 
         with (
             patch("app.workers.extract.get_client", return_value=client),
@@ -244,7 +241,6 @@ class TestExtractHandle:
             result = _handle(
                 _DOCUMENT_TEXT.encode("utf-8"),
                 _STORAGE_PATH,
-                minio,
                 _SCHEMA,
             )
 
@@ -256,7 +252,6 @@ class TestExtractHandle:
             {"total_square": None, "advance_payment": None, "deadline_date": None}
         )
         client = _make_gemini_client(pydantic_result)
-        minio = _make_minio()
 
         russian_text = "Площадь: 5 400 м²."
 
@@ -265,7 +260,7 @@ class TestExtractHandle:
             patch("app.llm.extract_llm.get_settings") as mock_settings,
         ):
             mock_settings.return_value.gemini_heavy_model = "gemini-2.5-pro"
-            _handle(russian_text.encode("utf-8"), _STORAGE_PATH, minio, _SCHEMA)
+            _handle(russian_text.encode("utf-8"), _STORAGE_PATH, _SCHEMA)
 
         prompt_arg = client.generate.call_args[1]["contents"]
         assert "5 400 м²" in prompt_arg
@@ -286,7 +281,7 @@ class TestExtractTaskValidation:
 
     def test_missing_extraction_schema_raises_value_error(self):
         with pytest.raises(ValueError, match="extraction_schema"):
-            _handle(b"text", _STORAGE_PATH, MagicMock(spec=MinIOClient), [])
+            _handle(b"text", _STORAGE_PATH, [])
 
     def test_valid_kwargs_calls_run_document_task(self):
         with patch("app.workers.extract.run_document_task", return_value={"k": "v"}) as mock_run:

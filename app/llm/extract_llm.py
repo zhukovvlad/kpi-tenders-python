@@ -71,7 +71,12 @@ def _build_extraction_model(
                 f"extraction_schema[{index}].data_type must be a string, "
                 f"got {type(data_type).__name__}"
             )
-        py_type = _FIELD_TYPE.get(data_type, str | None)
+        if data_type not in _FIELD_TYPE:
+            raise ValueError(
+                f"extraction_schema[{index}].data_type {data_type!r} is not supported; "
+                f"must be one of {', '.join(sorted(_FIELD_TYPE))}"
+            )
+        py_type = _FIELD_TYPE[data_type]
         fields[key] = (py_type, Field(default=None))
 
     return create_model("ExtractionResult", **fields)

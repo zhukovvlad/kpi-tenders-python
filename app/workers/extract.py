@@ -27,7 +27,6 @@ log = logging.getLogger(__name__)
 def _handle(
     file_bytes: bytes,
     storage_path: str,
-    minio: MinIOClient,
     extraction_schema: list[dict[str, str]],
 ) -> dict[str, Any]:
     """Module-specific handler: decode bytes → call Gemini Pro → return flat dict."""
@@ -67,6 +66,6 @@ def extract_task(
     extraction_schema: list[dict] = kwargs.get("extraction_schema") or []
 
     def _bound_handle(file_bytes: bytes, sp: str, minio: MinIOClient) -> dict[str, Any]:
-        return _handle(file_bytes, sp, minio, extraction_schema)
+        return _handle(file_bytes, sp, extraction_schema)
 
     return run_document_task(self, task_id, document_id, storage_path, _bound_handle)

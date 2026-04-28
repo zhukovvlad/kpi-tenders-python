@@ -30,7 +30,7 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     task_default_queue="io",
     # io  — I/O-bound parsing (DOCX/XLSX/PDF), scale with --concurrency
-    # llm — LLM + NER-heavy tasks (Gemini, Natasha, Presidio), keep concurrency low
+    # llm — LLM + NER-heavy tasks (Gemini, Natasha), keep concurrency low
     task_routes={
         "app.workers.convert.convert_task": {"queue": "io"},
         "app.workers.parse_invoice.parse_invoice_task": {"queue": "io"},
