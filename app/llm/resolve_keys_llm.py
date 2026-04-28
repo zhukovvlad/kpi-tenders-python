@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.config import get_settings
 from app.llm.gemini_client import GeminiClient
@@ -30,6 +31,9 @@ log = logging.getLogger(__name__)
 # ── Response schema for Gemini ────────────────────────────────────────────────
 
 
+_KEY_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
 class _ResolvedKeyItem(BaseModel):
     """Single resolved key returned by the LLM."""
 
@@ -37,6 +41,16 @@ class _ResolvedKeyItem(BaseModel):
     source_query: str
     data_type: Literal["string", "number", "date"]
     is_new: bool
+
+    @field_validator("key_name")
+    @classmethod
+    def _validate_key_name(cls, v: str) -> str:
+        if not _KEY_NAME_RE.match(v):
+            raise ValueError(
+                f"key_name {v!r} must match ^[a-z][a-z0-9_]*$ "
+                "(lowercase snake_case, no leading digits or special chars)"
+            )
+        return v
 
 
 class _ResolveKeysResponse(BaseModel):

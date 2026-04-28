@@ -38,12 +38,12 @@ def _run_resolve_keys(
     """Lifecycle for resolve_keys: mark processing → call LLM → report result."""
     with GoClient() as go:
         try:
-            client = get_client()
-
             if not raw_questions:
                 raise ValueError(
                     f"resolve_keys_task: raw_questions is empty for task_id={task_id!r}"
                 )
+
+            client = get_client()
 
             go.update_task(
                 task_id=task_id,

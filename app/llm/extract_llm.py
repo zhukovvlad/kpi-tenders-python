@@ -59,6 +59,10 @@ def _build_extraction_model(
         key = entry.get("key_name")
         if not isinstance(key, str) or not key:
             raise ValueError(f"extraction_schema[{index}].key_name must be a non-empty string")
+        if not key.isidentifier():
+            raise ValueError(
+                f"extraction_schema[{index}].key_name {key!r} is not a valid Python identifier"
+            )
         data_type = entry.get("data_type", "string")
         py_type = _FIELD_TYPE.get(data_type, str | None)
         fields[key] = (py_type, Field(default=None))

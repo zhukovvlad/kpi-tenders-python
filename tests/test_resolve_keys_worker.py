@@ -212,7 +212,6 @@ class TestResolveKeysFunction:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.integration
 class TestRunResolveKeys:
     def _patch_go(self, go_ctx):
         return patch("app.workers.resolve_keys.GoClient", return_value=go_ctx)
@@ -294,7 +293,6 @@ class TestRunResolveKeys:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.integration
 class TestResolveKeysTaskValidation:
     """Tests for kwarg validation logic inside resolve_keys_task entry-point.
 
