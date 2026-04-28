@@ -4,7 +4,7 @@
 
 AI-воркер SaaS-платформы для анализа тендерной документации. Python-сервис обрабатывает документы (DOCX/XLSX/PDF) и возвращает структурированные результаты в Go-бэкенд.
 
-**Stack:** Python 3.12, FastAPI, Celery 5.x, Redis 7, MinIO, PostgreSQL 16 + pgvector, Gemini (google-genai), Natasha + Presidio (NER). Тулинг: ruff (format + lint), pytest + pytest-cov, Flower.
+**Stack:** Python 3.12, FastAPI, Celery 5.x, Redis 7, MinIO, PostgreSQL 16 + pgvector, Gemini (google-genai), Natasha (NER). Тулинг: ruff (format + lint), pytest + pytest-cov, Flower.
 
 ## Место в системе
 
@@ -40,7 +40,8 @@ app/
 │   ├── base.py           — run_document_task(): общий lifecycle (processing → download → handler → completed/failed)
 │   ├── convert.py        — DOCX/XLSX → Markdown + MinIO upload ✅
 │   ├── anonymize.py      — Natasha + stdnum + regex NER ✅
-│   ├── extract.py        — 2-stage Gemini Flash/Pro (stub)
+│   ├── resolve_keys.py   — Gemini Flash: вопросы → extraction keys (кастомный lifecycle, без MinIO) ✅
+│   ├── extract.py        — Gemini Pro: извлечение значений из анонимизированного MD ✅
 │   └── parse_invoice.py  — XLSX/PDF → позиции (stub)
 │
 ├── parsers/
@@ -48,7 +49,10 @@ app/
 │   └── xlsx_parser.py    — XLSX → Markdown ✅
 ├── nlp/
 │   └── anonymizer.py     — NER pipeline: Natasha (PERSON) + stdnum (INN/OGRN/SNILS) + regex ✅
-├── llm/                  — Gemini wrappers + промпты (не реализованы)
+├── llm/
+│   ├── gemini_client.py  — тонкая обёртка над google-genai, классификация ошибок ✅
+│   ├── resolve_keys_llm.py — Gemini Flash Structured Outputs: вопросы → {new_keys, resolved_schema} ✅
+│   └── extract_llm.py    — Gemini Pro + dynamic Pydantic model: MD → flat {key_name: value} ✅
 │
 ├── storage/
 │   └── minio_client.py   — MinIOClient.download(storage_path) -> bytes
@@ -100,7 +104,7 @@ tests/                    — pytest + pytest-asyncio + respx
 | Очередь | Задачи | Профиль | Дефолт concurrency |
 |---|---|---|---|
 | `io` | `convert`, `parse_invoice` | I/O-bound (docx/xlsx/pdf parsing) | 4 |
-| `llm` | `anonymize`, `extract` | CPU+LLM (Gemini, Natasha, Presidio) | 2 |
+| `llm` | `anonymize`, `resolve_keys`, `extract` | CPU+LLM (Gemini, Natasha) | 2 |
 
 `task_default_queue=io`. В dev можно поднять единый воркер на обе очереди (`make worker`), в prod-like разнести (`make worker-io` + `make worker-llm`) чтобы долгие LLM-задачи не блокировали быстрый парсинг.
 
@@ -121,6 +125,35 @@ tests/                    — pytest + pytest-asyncio + respx
 - `storage_path` формата `bucket/prefix/uuid.ext` либо `prefix/uuid.ext`.
 - Если префикс совпадает с `MINIO_BUCKET`, он отрезается; иначе используется default-бакет.
 - Тип файла определять **по расширению `storage_path`**, не по MIME.
+
+### LLM-слой (`app/llm/`)
+
+- `GeminiClient.generate(model, contents, response_schema, temperature=0.0)` — единая точка входа для Gemini API (Structured Outputs). Возвращает `response.parsed` (Pydantic-инстанс).
+- `GeminiAPIError(ValueError)` — постоянная ошибка (неверный ключ, недоступная модель). **Не ретраится** — наследует `ValueError`, попадает в `_NO_RETRY`.
+- `get_client()` — создаёт новый `GeminiClient` per task invocation (не синглтон).
+- **Structured Outputs:** в `response_schema` передаётся Pydantic-класс напрямую. Для `extract` модель создаётся динамически через `pydantic.create_model()` из `extraction_schema` kwargs.
+- **Все поля `extract` — `str | None`**: суммы вида "1 500 000 руб." нельзя надёжно парсить во float; Go хранит всё как текст.
+
+### Кастомный lifecycle для `resolve_keys`
+
+`resolve_keys_task` не скачивает файлы из MinIO — все входные данные в kwargs. Lifecycle реализован в `_run_resolve_keys()` напрямую (не через `run_document_task`):
+
+1. `go.update_task(status="processing")`
+2. `resolve_keys(client, raw_questions=..., existing_keys=...)`
+3. `go.update_task(status="completed", result_payload=...)`
+
+Kwargs: `raw_questions: list[str]`, `existing_keys: list[dict]`. Go не передаёт `md_document_id` — это не нужно. Go сам знает, какой документ отдать на `extract` после получения `result_payload`.
+
+### Closure-паттерн для `extract`
+
+`_handle()` нужен доступ к `extraction_schema` из kwargs, а `run_document_task` передаёт в handler только `file_bytes` и `storage_path`. Решение:
+
+```python
+def _bound_handle(file_bytes, sp):
+    return _handle(file_bytes, sp, extraction_schema)
+
+return run_document_task(self, task_id, document_id, storage_path, _bound_handle)
+```
 
 ## Эндпоинты
 
@@ -151,7 +184,7 @@ make install          # установить зависимости
 make run              # uvicorn :8000 с --reload
 make worker           # один Celery-воркер на обе очереди (dev)
 make worker-io        # воркер на очереди io (convert, parse_invoice)
-make worker-llm       # воркер на очереди llm (anonymize, extract)
+make worker-llm       # воркер на очереди llm (anonymize, resolve_keys, extract)
 
 make celery-status    # ping воркеров
 make celery-tasks     # активные задачи
@@ -166,6 +199,7 @@ make test-cov         # с coverage (html + term)
 make format           # ruff format + ruff check --fix
 make lint             # ruff check
 make check            # ruff --check без записи
+make ci               # format + check + test (перед push)
 ```
 
 Инфраструктура (Postgres, Redis, MinIO) поднимается из `go-kpi-tenders/docker-compose.yml`.
@@ -180,7 +214,9 @@ make check            # ruff --check без записи
 - `GO_SERVICE_URL` — базовый URL Go-бэкенда (без trailing `/`).
 - `REDIS_URL` — брокер Celery.
 - `MINIO_*` — креды MinIO из docker-compose Go-сервиса.
-- `GEMINI_API_KEY` — нужен только для `extract` и `parse_invoice` (PDF).
+- `GEMINI_API_KEY` — нужен для `resolve_keys` (Gemini Flash), `extract` (Gemini Pro) и `parse_invoice` (PDF).
+- `GEMINI_LIGHT_MODEL` — модель для `resolve_keys`, дефолт `gemini-2.0-flash`.
+- `GEMINI_HEAVY_MODEL` — модель для `extract`, дефолт `gemini-2.5-pro`.
 
 ## Что НЕ делает Python
 
@@ -195,16 +231,18 @@ make check            # ruff --check без записи
 ### Реализовано
 
 - FastAPI с `/health` (мониторинг). `/process` удалён — Go публикует задачи напрямую в Redis.
-- Celery app с регистрацией 4 воркеров.
+- Celery app с регистрацией 5 воркеров (включая `resolve_keys`).
 - `MinIOClient.download(storage_path)` и `MinIOClient.upload(object_name, data)`.
 - `GoClient.update_task(...)` с ретраями.
 - Общий lifecycle `run_document_task()` в `workers/base.py`.
-- Модуль `convert`: `docx_parser.py`, `xlsx_parser.py`, `workers/convert.py` — полностью реализован, 85 тестов.
+- Модуль `convert`: `docx_parser.py`, `xlsx_parser.py`, `workers/convert.py` — полностью реализован.
+- Модуль `anonymize`: `nlp/anonymizer.py`, `workers/anonymize.py` — полностью реализован.
+- LLM-слой: `llm/gemini_client.py`, `llm/resolve_keys_llm.py`, `llm/extract_llm.py` — реализован.
+- Модуль `resolve_keys`: Gemini Flash Structured Outputs, кастомный lifecycle (без MinIO download).
+- Модуль `extract`: Gemini Pro + dynamic Pydantic model, closure-паттерн для передачи `extraction_schema`.
 
 ### Заглушки (`NotImplementedError`)
 
-- `workers/anonymize._handle` — Natasha + Presidio NER
-- `workers/extract._handle` — Gemini Flash (keys) + Gemini Pro (values)
 - `workers/parse_invoice._handle` — XLSX/PDF счета
 
 ### Go-сторона: зависимости

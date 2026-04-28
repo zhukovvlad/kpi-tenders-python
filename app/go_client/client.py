@@ -25,7 +25,6 @@ class GoServerError(Exception):
     """5xx response from Go — transient failure, safe to retry."""
 
 
-
 class GoClient:
     """HTTP client to Go internal worker API.
 

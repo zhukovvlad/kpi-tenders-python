@@ -1,7 +1,7 @@
 .PHONY: default help venv install run worker worker-io worker-llm \
         celery-status celery-tasks celery-purge celery-flower \
         test test-fast test-integration test-cov \
-        format lint check clean
+        format lint check ci clean
 
 # === Defaults (override in Makefile.local) ============================
 PY        ?= python3.12
@@ -100,6 +100,8 @@ check:
 	$(BIN)/ruff format --check app tests main.py
 	$(BIN)/ruff check app tests main.py
 
+ci: format check test
+
 # === Housekeeping =====================================================
 
 clean:
@@ -117,7 +119,7 @@ help:
 	@echo "  make run             — uvicorn on http://$(HOST):$(PORT) (reload)"
 	@echo "  make worker          — single Celery worker, all queues (dev)"
 	@echo "  make worker-io       — Celery worker, queue=io (convert, parse_invoice)"
-	@echo "  make worker-llm      — Celery worker, queue=llm (anonymize, extract)"
+	@echo "  make worker-llm      — Celery worker, queue=llm (anonymize, resolve_keys, extract)"
 	@echo ""
 	@echo "Celery diagnostics:"
 	@echo "  make celery-status   — ping all workers"
@@ -135,6 +137,7 @@ help:
 	@echo "  make format          — ruff format + ruff check --fix"
 	@echo "  make lint            — ruff check"
 	@echo "  make check           — ruff format --check + ruff check (no write)"
+	@echo "  make ci              — format + check + test (run before push)"
 	@echo ""
 	@echo "Housekeeping:"
 	@echo "  make clean           — drop caches"
