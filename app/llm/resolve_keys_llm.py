@@ -87,15 +87,16 @@ def _build_prompt(
     raw_questions: list[str],
     existing_keys: list[dict[str, str]],
 ) -> str:
-    existing_section = (
-        json.dumps(existing_keys, ensure_ascii=False, indent=2)
-        if existing_keys
-        else "[]  (no existing keys — all questions are new)"
+    existing_section = json.dumps(existing_keys, ensure_ascii=False, indent=2)
+    existing_keys_note = (
+        "\nNote: there are no existing keys, so all questions should be treated as new.\n"
+        if not existing_keys
+        else ""
     )
     questions_section = json.dumps(raw_questions, ensure_ascii=False, indent=2)
     return (
         f"{_SYSTEM_PROMPT}\n\n"
-        f"EXISTING KEYS:\n{existing_section}\n\n"
+        f"EXISTING KEYS:\n{existing_section}{existing_keys_note}\n"
         f"NEW USER QUESTIONS:\n{questions_section}\n\n"
         "Respond with a JSON object matching the required schema."
     )
@@ -129,6 +130,12 @@ def resolve_keys(
     """
     if not raw_questions:
         raise ValueError("raw_questions must not be empty")
+    if not all(isinstance(q, str) and q.strip() for q in raw_questions):
+        raise ValueError("raw_questions must be a list of non-blank strings")
+    if not all(
+        isinstance(k, dict) and all(isinstance(v, str) for v in k.values()) for k in existing_keys
+    ):
+        raise ValueError("existing_keys must be a list of dicts with string values")
 
     settings = get_settings()
     prompt = _build_prompt(raw_questions, existing_keys)

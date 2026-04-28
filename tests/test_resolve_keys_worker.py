@@ -145,6 +145,30 @@ class TestResolveKeysFunction:
         with pytest.raises(ValueError, match="raw_questions"):
             resolve_keys(client, raw_questions=[], existing_keys=[])
 
+    def test_non_string_in_raw_questions_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="non-blank strings"):
+            resolve_keys(client, raw_questions=[123, "valid"], existing_keys=[])  # type: ignore[list-item]
+
+    def test_blank_string_in_raw_questions_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="non-blank strings"):
+            resolve_keys(client, raw_questions=["valid", "  "], existing_keys=[])
+
+    def test_non_dict_in_existing_keys_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="existing_keys"):
+            resolve_keys(client, raw_questions=["q"], existing_keys=["not-a-dict"])  # type: ignore[list-item]
+
+    def test_non_string_value_in_existing_keys_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="existing_keys"):
+            resolve_keys(
+                client,
+                raw_questions=["q"],
+                existing_keys=[{"key_name": "k", "data_type": 123}],  # type: ignore[dict-item]
+            )
+
     def test_resolved_schema_entry_has_key_name_and_data_type(self):
         client = _make_gemini_client(_make_llm_response([("deadline_date", "q", "date", True)]))
         result = resolve_keys(
@@ -221,6 +245,28 @@ class TestRunResolveKeys:
 
     def _patch_resolve_keys(self, result):
         return patch("app.workers.resolve_keys.resolve_keys", return_value=result)
+
+    def test_processing_reported_before_client_init(self):
+        """If get_client() raises, Go must have already received 'processing'."""
+        go_ctx, go = _make_go_client()
+        task = _make_celery_task()
+
+        with (
+            self._patch_go(go_ctx),
+            patch(
+                "app.workers.resolve_keys.get_client",
+                side_effect=RuntimeError("SDK init failed"),
+            ),
+            pytest.raises(RuntimeError, match="retried"),
+        ):
+            _run_resolve_keys(task, _TASK_ID, _RAW_QUESTIONS, _EXISTING_KEYS)
+
+        go.update_task.assert_any_call(
+            task_id=_TASK_ID, status="processing", celery_task_id="celery-task-abc"
+        )
+        go.update_task.assert_any_call(
+            task_id=_TASK_ID, status="failed", error_message="SDK init failed"
+        )
 
     def test_marks_processing_then_completed(self):
         go_ctx, go = _make_go_client()

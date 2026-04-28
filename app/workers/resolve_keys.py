@@ -43,13 +43,13 @@ def _run_resolve_keys(
                     f"resolve_keys_task: raw_questions is empty for task_id={task_id!r}"
                 )
 
-            client = get_client()
-
             go.update_task(
                 task_id=task_id,
                 status="processing",
                 celery_task_id=task.request.id,
             )
+
+            client = get_client()
 
             result = resolve_keys(
                 client,
