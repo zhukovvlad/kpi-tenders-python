@@ -113,6 +113,10 @@ class TestBuildExtractionModel:
         with pytest.raises(ValueError, match="not a valid Python identifier"):
             _build_extraction_model([{"key_name": "2bad", "data_type": "string"}])
 
+    def test_non_string_data_type_raises_value_error(self):
+        with pytest.raises(ValueError, match="data_type must be a string"):
+            _build_extraction_model([{"key_name": "total_square", "data_type": 42}])  # type: ignore[dict-item]
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # extract_llm.extract_values — pure function

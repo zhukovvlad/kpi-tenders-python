@@ -32,6 +32,8 @@ log = logging.getLogger(__name__)
 
 
 _KEY_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+_REQUIRED_EXISTING_KEY_FIELDS = frozenset({"key_name", "source_query", "data_type"})
+_ALLOWED_EXISTING_DATA_TYPES = frozenset({"string", "number", "date"})
 
 
 class _ResolvedKeyItem(BaseModel):
@@ -136,10 +138,27 @@ def resolve_keys(
         raise ValueError("raw_questions must be a list of non-blank strings")
     if not isinstance(existing_keys, list):
         raise ValueError("existing_keys must be a list, got " + type(existing_keys).__name__)
-    if not all(
-        isinstance(k, dict) and all(isinstance(v, str) for v in k.values()) for k in existing_keys
-    ):
-        raise ValueError("existing_keys must be a list of dicts with string values")
+    for index, k in enumerate(existing_keys):
+        if not isinstance(k, dict):
+            raise ValueError(f"existing_keys[{index}] must be a dict, got {type(k).__name__}")
+        if not all(isinstance(field, str) for field in k):
+            raise ValueError(f"existing_keys[{index}] must have only string keys")
+        missing = _REQUIRED_EXISTING_KEY_FIELDS - set(k)
+        if missing:
+            raise ValueError(
+                f"existing_keys[{index}] is missing required field(s): {', '.join(sorted(missing))}"
+            )
+        for field in _REQUIRED_EXISTING_KEY_FIELDS:
+            if not isinstance(k[field], str):
+                raise ValueError(
+                    f"existing_keys[{index}][{field!r}] must be a string, "
+                    f"got {type(k[field]).__name__}"
+                )
+        if k["data_type"] not in _ALLOWED_EXISTING_DATA_TYPES:
+            raise ValueError(
+                f"existing_keys[{index}]['data_type'] must be one of "
+                f"{', '.join(sorted(_ALLOWED_EXISTING_DATA_TYPES))}, got {k['data_type']!r}"
+            )
 
     settings = get_settings()
     prompt = _build_prompt(raw_questions, existing_keys)

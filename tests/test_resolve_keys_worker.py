@@ -179,6 +179,24 @@ class TestResolveKeysFunction:
         with pytest.raises(ValueError, match="str"):
             resolve_keys(client, raw_questions=["q"], existing_keys="not-a-list")  # type: ignore[arg-type]
 
+    def test_existing_key_missing_required_field_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="missing required field"):
+            resolve_keys(
+                client,
+                raw_questions=["q"],
+                existing_keys=[{"key_name": "k", "data_type": "string"}],  # missing source_query
+            )
+
+    def test_existing_key_invalid_data_type_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="data_type"):
+            resolve_keys(
+                client,
+                raw_questions=["q"],
+                existing_keys=[{"key_name": "k", "source_query": "q", "data_type": "boolean"}],
+            )
+
     def test_resolved_schema_entry_has_key_name_and_data_type(self):
         client = _make_gemini_client(_make_llm_response([("deadline_date", "q", "date", True)]))
         result = resolve_keys(

@@ -119,7 +119,7 @@ help:
 	@echo "  make run             — uvicorn on http://$(HOST):$(PORT) (reload)"
 	@echo "  make worker          — single Celery worker, all queues (dev)"
 	@echo "  make worker-io       — Celery worker, queue=io (convert, parse_invoice)"
-	@echo "  make worker-llm      — Celery worker, queue=llm (anonymize, extract)"
+	@echo "  make worker-llm      — Celery worker, queue=llm (anonymize, resolve_keys, extract)"
 	@echo ""
 	@echo "Celery diagnostics:"
 	@echo "  make celery-status   — ping all workers"
