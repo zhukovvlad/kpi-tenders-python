@@ -36,10 +36,15 @@ def _run_resolve_keys(
     existing_keys: list[dict[str, str]],
 ) -> dict[str, Any]:
     """Lifecycle for resolve_keys: mark processing → call LLM → report result."""
-    client = get_client()
-
     with GoClient() as go:
         try:
+            client = get_client()
+
+            if not raw_questions:
+                raise ValueError(
+                    f"resolve_keys_task: raw_questions is empty for task_id={task_id!r}"
+                )
+
             go.update_task(
                 task_id=task_id,
                 status="processing",
@@ -101,9 +106,6 @@ def resolve_keys_task(
     """
     raw_questions: list[str] = kwargs.get("raw_questions") or []
     existing_keys: list[dict] = kwargs.get("existing_keys") or []
-
-    if not raw_questions:
-        raise ValueError(f"resolve_keys_task: raw_questions is empty for task_id={task_id!r}")
 
     return _run_resolve_keys(
         self,

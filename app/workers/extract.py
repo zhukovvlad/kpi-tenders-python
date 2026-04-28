@@ -31,6 +31,11 @@ def _handle(
     extraction_schema: list[dict[str, str]],
 ) -> dict[str, Any]:
     """Module-specific handler: decode bytes → call Gemini Pro → return flat dict."""
+    if not extraction_schema:
+        raise ValueError(
+            f"extract_task: extraction_schema is empty (storage_path={storage_path!r}). "
+            "Go must pass it as a kwarg."
+        )
     document_text = file_bytes.decode("utf-8")
     client = get_client()
     return extract_values(client, document_text=document_text, extraction_schema=extraction_schema)
@@ -60,12 +65,6 @@ def extract_task(
         extraction_schema : list[dict]  — keys to extract
     """
     extraction_schema: list[dict] = kwargs.get("extraction_schema") or []
-
-    if not extraction_schema:
-        raise ValueError(
-            f"extract_task: extraction_schema is empty for task_id={task_id!r}. "
-            "Go must pass it as a kwarg."
-        )
 
     def _bound_handle(file_bytes: bytes, sp: str, minio: MinIOClient) -> dict[str, Any]:
         return _handle(file_bytes, sp, minio, extraction_schema)

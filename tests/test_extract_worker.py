@@ -259,17 +259,13 @@ class TestExtractTaskValidation:
     """Tests for kwarg validation logic inside extract_task entry-point.
 
     ``.run()`` is already bound (Celery bind=True), no explicit self needed.
+    Empty-schema validation now lives inside ``_handle`` (so ``run_document_task``
+    can report ``failed`` to Go); it is tested via ``_handle`` directly.
     """
 
     def test_missing_extraction_schema_raises_value_error(self):
         with pytest.raises(ValueError, match="extraction_schema"):
-            extract_task.run(
-                _TASK_ID,
-                _DOC_ID,
-                _STORAGE_PATH,
-                extraction_schema=[],
-                md_document_id=_MD_DOC_ID,
-            )
+            _handle(b"text", _STORAGE_PATH, MagicMock(spec=MinIOClient), [])
 
     def test_valid_kwargs_calls_run_document_task(self):
         with patch("app.workers.extract.run_document_task", return_value={"k": "v"}) as mock_run:

@@ -282,10 +282,19 @@ class TestResolveKeysTaskValidation:
     ``.run()`` is already bound to the task instance (Celery's bind=True), so
     we call it without an explicit ``self`` argument and patch
     ``_run_resolve_keys`` to prevent actual Go/Gemini calls.
+
+    Empty-questions validation now lives inside ``_run_resolve_keys`` (so
+    Go receives a ``failed`` status update); the test mocks GoClient and
+    get_client so no real connections are made.
     """
 
     def test_missing_raw_questions_raises_value_error(self):
-        with pytest.raises(ValueError, match="raw_questions"):
+        go_ctx, _ = _make_go_client()
+        with (
+            patch("app.workers.resolve_keys.GoClient", return_value=go_ctx),
+            patch("app.workers.resolve_keys.get_client", return_value=MagicMock()),
+            pytest.raises(ValueError, match="raw_questions"),
+        ):
             resolve_keys_task.run(
                 _TASK_ID,
                 _DOC_ID,
