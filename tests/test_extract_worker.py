@@ -207,6 +207,7 @@ class TestExtractValues:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.integration
 class TestExtractHandle:
     def test_decodes_bytes_and_returns_extraction_result(self):
         pydantic_result = _make_pydantic_result(
@@ -267,6 +268,7 @@ class TestExtractTaskValidation:
         with pytest.raises(ValueError, match="extraction_schema"):
             _handle(b"text", _STORAGE_PATH, MagicMock(spec=MinIOClient), [])
 
+    @pytest.mark.integration
     def test_valid_kwargs_calls_run_document_task(self):
         with patch("app.workers.extract.run_document_task", return_value={"k": "v"}) as mock_run:
             result = extract_task.run(
@@ -285,6 +287,7 @@ class TestExtractTaskValidation:
         assert callable(call_args[4])  # the bound handler
         assert result == {"k": "v"}
 
+    @pytest.mark.integration
     def test_bound_handler_passes_schema_to_handle(self):
         captured: dict = {}
 

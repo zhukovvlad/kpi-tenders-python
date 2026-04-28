@@ -132,6 +132,13 @@ def resolve_keys(
         response_schema=_ResolveKeysResponse,
     )
 
+    if len(llm_response.keys) != len(raw_questions):
+        raise ValueError(
+            f"resolve_keys: LLM returned {len(llm_response.keys)} key(s) "
+            f"but expected {len(raw_questions)} (one per question). "
+            "Gemini may have merged or dropped questions."
+        )
+
     new_keys: list[dict[str, str]] = []
     resolved_schema: list[dict[str, str]] = []
 

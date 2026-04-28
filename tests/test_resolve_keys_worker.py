@@ -189,12 +189,30 @@ class TestResolveKeysFunction:
         call_kwargs = client.generate.call_args[1]
         assert call_kwargs["response_schema"] is _ResolveKeysResponse
 
+    def test_cardinality_mismatch_raises_value_error(self):
+        """LLM returned fewer keys than raw_questions — must raise ValueError."""
+        # 2 questions but LLM returns only 1 key
+        client = _make_gemini_client(
+            _make_llm_response([("total_square", _RAW_QUESTIONS[0], "number", True)])
+        )
+        with (
+            patch("app.llm.resolve_keys_llm.get_settings") as mock_settings,
+            pytest.raises(ValueError, match="expected 2"),
+        ):
+            mock_settings.return_value.gemini_light_model = "gemini-2.0-flash"
+            resolve_keys(
+                client,
+                raw_questions=_RAW_QUESTIONS[:2],
+                existing_keys=[],
+            )
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # _run_resolve_keys — lifecycle tests (GoClient mocked)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.integration
 class TestRunResolveKeys:
     def _patch_go(self, go_ctx):
         return patch("app.workers.resolve_keys.GoClient", return_value=go_ctx)
@@ -276,6 +294,7 @@ class TestRunResolveKeys:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.integration
 class TestResolveKeysTaskValidation:
     """Tests for kwarg validation logic inside resolve_keys_task entry-point.
 
