@@ -7,7 +7,7 @@ The ``storage_path`` positional arg points to the anonymised Markdown file in
 MinIO (Go sets ``input_storage_path = mdDoc.StoragePath``). The extract worker
 downloads this file and sends its text to Gemini Pro for extraction.
 
-Result payload: flat ``{key_name: "value_or_null"}`` dict.
+Result payload: flat ``{key_name: str | None}`` dict (JSON ``null`` for missing values).
 Go ``handleExtractCompleted`` persists non-null values into
 ``document_extracted_data``.
 """

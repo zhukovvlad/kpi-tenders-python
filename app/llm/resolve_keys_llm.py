@@ -185,22 +185,36 @@ def resolve_keys(
 
     new_keys: list[dict[str, str]] = []
     resolved_schema: list[dict[str, str]] = []
+    seen_resolved: set[str] = set()
+    seen_new: set[str] = set()
+    skipped_resolved = 0
+    skipped_new = 0
 
     for item in llm_response.keys:
-        resolved_schema.append({"key_name": item.key_name, "data_type": item.data_type})
+        if item.key_name not in seen_resolved:
+            resolved_schema.append({"key_name": item.key_name, "data_type": item.data_type})
+            seen_resolved.add(item.key_name)
+        else:
+            skipped_resolved += 1
         if item.is_new:
-            new_keys.append(
-                {
-                    "key_name": item.key_name,
-                    "source_query": item.source_query,
-                    "data_type": item.data_type,
-                }
-            )
+            if item.key_name not in seen_new:
+                new_keys.append(
+                    {
+                        "key_name": item.key_name,
+                        "source_query": item.source_query,
+                        "data_type": item.data_type,
+                    }
+                )
+                seen_new.add(item.key_name)
+            else:
+                skipped_new += 1
 
     log.info(
-        "resolve_keys: resolved %d key(s), %d new",
+        "resolve_keys: resolved %d unique key(s), %d new; skipped %d duplicate resolved, %d duplicate new",
         len(resolved_schema),
         len(new_keys),
+        skipped_resolved,
+        skipped_new,
     )
 
     return {

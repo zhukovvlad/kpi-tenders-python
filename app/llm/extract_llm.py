@@ -134,8 +134,8 @@ def extract_values(
     Returns
     -------
     dict
-        Flat ``{key_name: value_or_null}`` mapping. Null values are strings
-        parsed as Python ``None``. Go will skip null values when persisting.
+        Flat ``{key_name: value_or_null}`` mapping. Null values are Python
+        ``None`` (JSON ``null``). Go will skip null values when persisting.
     """
     if not document_text.strip():
         raise ValueError("document_text must not be empty")
