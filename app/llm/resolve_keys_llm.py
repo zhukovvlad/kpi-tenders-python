@@ -128,10 +128,14 @@ def resolve_keys(
     dict
         ``result_payload`` ready for ``GoClient.update_task``.
     """
+    if not isinstance(raw_questions, list):
+        raise ValueError("raw_questions must be a list, got " + type(raw_questions).__name__)
     if not raw_questions:
         raise ValueError("raw_questions must not be empty")
     if not all(isinstance(q, str) and q.strip() for q in raw_questions):
         raise ValueError("raw_questions must be a list of non-blank strings")
+    if not isinstance(existing_keys, list):
+        raise ValueError("existing_keys must be a list, got " + type(existing_keys).__name__)
     if not all(
         isinstance(k, dict) and all(isinstance(v, str) for v in k.values()) for k in existing_keys
     ):

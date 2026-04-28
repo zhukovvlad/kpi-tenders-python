@@ -155,6 +155,11 @@ class TestResolveKeysFunction:
         with pytest.raises(ValueError, match="non-blank strings"):
             resolve_keys(client, raw_questions=["valid", "  "], existing_keys=[])
 
+    def test_string_instead_of_list_raw_questions_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="str"):
+            resolve_keys(client, raw_questions="вопрос", existing_keys=[])  # type: ignore[arg-type]
+
     def test_non_dict_in_existing_keys_raises_value_error(self):
         client = _make_gemini_client(_make_llm_response([]))
         with pytest.raises(ValueError, match="existing_keys"):
@@ -168,6 +173,11 @@ class TestResolveKeysFunction:
                 raw_questions=["q"],
                 existing_keys=[{"key_name": "k", "data_type": 123}],  # type: ignore[dict-item]
             )
+
+    def test_string_instead_of_list_existing_keys_raises_value_error(self):
+        client = _make_gemini_client(_make_llm_response([]))
+        with pytest.raises(ValueError, match="str"):
+            resolve_keys(client, raw_questions=["q"], existing_keys="not-a-list")  # type: ignore[arg-type]
 
     def test_resolved_schema_entry_has_key_name_and_data_type(self):
         client = _make_gemini_client(_make_llm_response([("deadline_date", "q", "date", True)]))
