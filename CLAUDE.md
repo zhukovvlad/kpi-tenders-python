@@ -146,11 +146,11 @@ Kwargs: `raw_questions: list[str]`, `existing_keys: list[dict]`. Go не пер�
 
 ### Closure-паттерн для `extract`
 
-`_handle()` нужен доступ к `extraction_schema` из kwargs, но `run_document_task` ожидает `handler(bytes, path, minio)`. Решение:
+`_handle()` нужен доступ к `extraction_schema` из kwargs, а `run_document_task` передаёт в handler только `file_bytes` и `storage_path`. Решение:
 
 ```python
-def _bound_handle(file_bytes, sp, minio):
-    return _handle(file_bytes, sp, minio, extraction_schema)
+def _bound_handle(file_bytes, sp):
+    return _handle(file_bytes, sp, extraction_schema)
 
 return run_document_task(self, task_id, document_id, storage_path, _bound_handle)
 ```
