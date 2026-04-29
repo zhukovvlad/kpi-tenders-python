@@ -127,9 +127,13 @@ class GeminiClient:
         try:
             return response_schema.model_validate_json(raw)
         except ValidationError as exc:
+            log.debug(
+                "Gemini response failed schema validation for model=%r; raw preview=%r",
+                model,
+                raw[:200],
+            )
             raise GeminiAPIError(
-                f"Gemini response does not match expected schema for model={model!r}. "
-                f"Raw preview: {raw[:200]!r}"
+                f"Gemini response does not match expected schema for model={model!r}."
             ) from exc
 
 
@@ -140,8 +144,9 @@ def get_client() -> GeminiClient:
     forks don't share a connection.
     """
     settings = get_settings()
-    if not settings.gemini_api_key:
+    api_key = settings.gemini_api_key
+    if not api_key:
         raise GeminiAPIError(
             "GEMINI_API_KEY is not set. Set it in .env or environment before running LLM workers."
         )
-    return GeminiClient(api_key=settings.gemini_api_key)
+    return GeminiClient(api_key=api_key)

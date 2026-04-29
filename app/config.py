@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     database_url: str = Field(..., min_length=1)
 
     # Gemini
-    gemini_api_key: str = ""
+    gemini_api_key: str | None = None
     gemini_light_model: str = "gemini-2.5-flash"
     gemini_heavy_model: str = "gemini-3.1-pro-preview"
 
