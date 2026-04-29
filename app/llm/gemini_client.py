@@ -128,9 +128,9 @@ class GeminiClient:
             return response_schema.model_validate_json(raw)
         except ValidationError as exc:
             log.debug(
-                "Gemini response failed schema validation for model=%r; raw preview=%r",
+                "Gemini response failed schema validation for model=%r; raw length=%d",
                 model,
-                raw[:200],
+                len(raw),
             )
             raise GeminiAPIError(
                 f"Gemini response does not match expected schema for model={model!r}."

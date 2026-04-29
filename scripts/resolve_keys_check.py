@@ -77,7 +77,14 @@ def main() -> None:
         if not existing_path.exists():
             print(f"[ERROR] File not found: {existing_path}", file=sys.stderr)
             sys.exit(1)
-        existing_keys = json.loads(existing_path.read_text(encoding="utf-8"))
+        try:
+            existing_keys = json.loads(existing_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"[ERROR] Cannot read file {existing_path}: {exc}", file=sys.stderr)
+            sys.exit(1)
+        except json.JSONDecodeError as exc:
+            print(f"[ERROR] Invalid JSON in {existing_path}: {exc}", file=sys.stderr)
+            sys.exit(1)
         if not isinstance(existing_keys, list):
             print("[ERROR] existing keys file must contain a JSON array", file=sys.stderr)
             sys.exit(1)
