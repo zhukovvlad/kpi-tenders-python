@@ -15,10 +15,15 @@ Exception (any other)
 """
 
 import logging
+import os
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 from google import genai
-from google.genai import types
+from google.genai import errors as genai_errors
+from google.genai.types import HttpOptions
+from pydantic import ValidationError
 
 from app.config import get_settings
 
@@ -33,7 +38,24 @@ class GeminiClient:
     """Lightweight wrapper around ``genai.Client`` with structured-output support."""
 
     def __init__(self, api_key: str) -> None:
-        self._client = genai.Client(api_key=api_key)
+        proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+        self._httpx_client: httpx.Client | None = None
+        http_options: HttpOptions | None = None
+        if proxy_url:
+            self._httpx_client = httpx.Client(proxy=proxy_url, follow_redirects=True)
+            http_options = HttpOptions(httpx_client=self._httpx_client)
+            parsed = urlparse(proxy_url)
+            log.debug("GeminiClient: using proxy %s://%s", parsed.scheme, parsed.hostname)
+        self._client: genai.Client | None = genai.Client(api_key=api_key, http_options=http_options)
+
+    def close(self) -> None:
+        """Close any owned network resources."""
+        if self._httpx_client is not None:
+            self._httpx_client.close()
+            self._httpx_client = None
+        if self._client is not None:
+            self._client.close()
+            self._client = None
 
     def generate(
         self,
@@ -48,12 +70,13 @@ class GeminiClient:
         Parameters
         ----------
         model:
-            Gemini model name, e.g. ``"gemini-2.0-flash"``.
+            Gemini model name, e.g. ``"gemini-2.5-flash"``.
         contents:
             Prompt string sent to the model.
         response_schema:
-            A Pydantic ``BaseModel`` class. The SDK enforces the schema via
-            ``response_mime_type="application/json"`` + ``response_schema``.
+            A Pydantic ``BaseModel`` class. Its JSON schema is sent via
+            ``response_json_schema``; the response text is validated with
+            ``model_validate_json``.
         temperature:
             Sampling temperature. 0.0 for deterministic extraction.
 
@@ -69,43 +92,41 @@ class GeminiClient:
         Exception
             On transient failures (5xx, network).
         """
+        if self._client is None:
+            raise GeminiAPIError("GeminiClient has already been closed.")
         try:
             resp = self._client.models.generate_content(
                 model=model,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=response_schema,
-                    temperature=temperature,
-                ),
+                config={
+                    "response_mime_type": "application/json",
+                    "response_json_schema": response_schema.model_json_schema(),
+                    "temperature": temperature,
+                },
             )
-        except Exception as exc:
-            # Classify permanent vs transient failures.
-            exc_str = str(exc).lower()
-            is_permanent = any(
-                marker in exc_str
-                for marker in (
-                    "invalid argument",
-                    "permission denied",
-                    "api key",
-                    "unauthorized",
-                    "bad request",
-                    "400",
-                    "403",
-                )
-            )
-            if is_permanent:
-                raise GeminiAPIError(f"Permanent Gemini error: {exc}") from exc
-            raise  # transient — let Celery retry
+        except genai_errors.ClientError as exc:
+            # 4xx — permanent failure (bad key, quota, invalid request).
+            raise GeminiAPIError(f"Permanent Gemini error: {exc}") from exc
+        except genai_errors.ServerError:
+            raise  # 5xx — transient, let Celery retry
+        except Exception:
+            raise  # network / unknown — transient, let Celery retry
 
-        if resp.parsed is None:
-            raw_preview = (resp.text or "")[:200]
+        raw = resp.text or ""
+        if not raw.strip():
+            raise GeminiAPIError(f"Gemini returned empty response for model={model!r}")
+
+        try:
+            return response_schema.model_validate_json(raw)
+        except ValidationError as exc:
+            log.debug(
+                "Gemini response failed schema validation for model=%r; raw length=%d",
+                model,
+                len(raw),
+            )
             raise GeminiAPIError(
-                f"Gemini returned no parsed output for model={model!r}. "
-                f"Raw text preview: {raw_preview!r}"
-            )
-
-        return resp.parsed
+                f"Gemini response does not match expected schema for model={model!r}."
+            ) from exc
 
 
 def get_client() -> GeminiClient:
@@ -115,8 +136,9 @@ def get_client() -> GeminiClient:
     forks don't share a connection.
     """
     settings = get_settings()
-    if not settings.gemini_api_key:
+    api_key = settings.gemini_api_key
+    if not api_key:
         raise GeminiAPIError(
             "GEMINI_API_KEY is not set. Set it in .env or environment before running LLM workers."
         )
-    return GeminiClient(api_key=settings.gemini_api_key)
+    return GeminiClient(api_key=api_key)

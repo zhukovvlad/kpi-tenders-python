@@ -55,12 +55,14 @@ def _run_resolve_keys(
             )
 
             client = get_client()
-
-            result = resolve_keys(
-                client,
-                raw_questions=raw_questions,
-                existing_keys=existing_keys,
-            )
+            try:
+                result = resolve_keys(
+                    client,
+                    raw_questions=raw_questions,
+                    existing_keys=existing_keys,
+                )
+            finally:
+                client.close()
 
             go.update_task(
                 task_id=task_id,
