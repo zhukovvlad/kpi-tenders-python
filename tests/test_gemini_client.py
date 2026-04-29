@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from google.genai import errors as genai_errors
 from pydantic import BaseModel
 
 from app.llm.gemini_client import GeminiAPIError, GeminiClient
@@ -100,7 +101,7 @@ def test_generate_permanent_api_error_raises():
         patch.object(
             client._client.models,
             "generate_content",
-            side_effect=Exception("400 bad request"),
+            side_effect=genai_errors.ClientError(code=400, response_json={"error": "bad request"}),
         ),
         pytest.raises(GeminiAPIError, match="Permanent Gemini error"),
     ):
@@ -112,7 +113,29 @@ def test_generate_permanent_api_error_raises():
 
 
 # ---------------------------------------------------------------------------
-# generate() — transient error re-raised as-is
+# generate() — transient ServerError re-raised as-is
+# ---------------------------------------------------------------------------
+
+
+def test_generate_server_error_reraises():
+    client = _make_client()
+    with (
+        patch.object(
+            client._client.models,
+            "generate_content",
+            side_effect=genai_errors.ServerError(code=503, response_json={"error": "overloaded"}),
+        ),
+        pytest.raises(genai_errors.ServerError),
+    ):
+        client.generate(
+            model="gemini-2.5-flash",
+            contents="prompt",
+            response_schema=_Schema,
+        )
+
+
+# ---------------------------------------------------------------------------
+# generate() — transient network error re-raised as-is
 # ---------------------------------------------------------------------------
 
 
@@ -142,6 +165,22 @@ def test_close_without_proxy_is_noop():
     client = _make_client()
     client.close()  # must not raise
     client.close()  # idempotent
+
+
+# ---------------------------------------------------------------------------
+# generate() on closed client → GeminiAPIError
+# ---------------------------------------------------------------------------
+
+
+def test_generate_on_closed_client_raises():
+    client = _make_client()
+    client.close()
+    with pytest.raises(GeminiAPIError, match="already been closed"):
+        client.generate(
+            model="gemini-2.5-flash",
+            contents="prompt",
+            response_schema=_Schema,
+        )
 
 
 # ---------------------------------------------------------------------------

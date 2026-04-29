@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 
 import httpx
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai.types import HttpOptions
 from pydantic import ValidationError
 
@@ -45,7 +46,7 @@ class GeminiClient:
             http_options = HttpOptions(httpx_client=self._httpx_client)
             parsed = urlparse(proxy_url)
             log.debug("GeminiClient: using proxy %s://%s", parsed.scheme, parsed.hostname)
-        self._client = genai.Client(api_key=api_key, http_options=http_options)
+        self._client: genai.Client | None = genai.Client(api_key=api_key, http_options=http_options)
 
     def close(self) -> None:
         """Close any owned network resources."""
@@ -91,6 +92,8 @@ class GeminiClient:
         Exception
             On transient failures (5xx, network).
         """
+        if self._client is None:
+            raise GeminiAPIError("GeminiClient has already been closed.")
         try:
             resp = self._client.models.generate_content(
                 model=model,
@@ -101,24 +104,13 @@ class GeminiClient:
                     "temperature": temperature,
                 },
             )
-        except Exception as exc:
-            # Classify permanent vs transient failures.
-            exc_str = str(exc).lower()
-            is_permanent = any(
-                marker in exc_str
-                for marker in (
-                    "invalid argument",
-                    "permission denied",
-                    "api key",
-                    "unauthorized",
-                    "bad request",
-                    "400",
-                    "403",
-                )
-            )
-            if is_permanent:
-                raise GeminiAPIError(f"Permanent Gemini error: {exc}") from exc
-            raise  # transient — let Celery retry
+        except genai_errors.ClientError as exc:
+            # 4xx — permanent failure (bad key, quota, invalid request).
+            raise GeminiAPIError(f"Permanent Gemini error: {exc}") from exc
+        except genai_errors.ServerError:
+            raise  # 5xx — transient, let Celery retry
+        except Exception:
+            raise  # network / unknown — transient, let Celery retry
 
         raw = resp.text or ""
         if not raw.strip():

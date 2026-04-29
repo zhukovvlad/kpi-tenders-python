@@ -91,6 +91,16 @@ def main() -> None:
         if not all(isinstance(k, dict) for k in existing_keys):
             print("[ERROR] each element in existing keys must be a JSON object", file=sys.stderr)
             sys.exit(1)
+        _required = {"key_name", "source_query", "data_type"}
+        for i, k in enumerate(existing_keys):
+            missing = _required - k.keys()
+            if missing or not all(isinstance(k.get(f), str) and k.get(f) for f in _required):
+                print(
+                    f"[ERROR] existing key #{i} must contain non-empty string fields:"
+                    f" key_name, source_query, data_type",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
     print("─" * 60)
     print(f"Questions ({len(raw_questions)}):")
