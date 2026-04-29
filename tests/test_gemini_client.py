@@ -142,3 +142,19 @@ def test_close_without_proxy_is_noop():
     client = _make_client()
     client.close()  # must not raise
     client.close()  # idempotent
+
+
+# ---------------------------------------------------------------------------
+# close() — proxy path: owned httpx.Client is closed exactly once
+# ---------------------------------------------------------------------------
+
+
+def test_close_with_proxy_closes_owned_client(monkeypatch):
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.example.com:8080")
+    client = _make_client()
+    assert client._httpx_client is not None
+    with patch.object(client._httpx_client, "close") as mock_close:
+        client.close()
+        mock_close.assert_called_once()
+        client.close()  # idempotent — must not call close again
+        mock_close.assert_called_once()

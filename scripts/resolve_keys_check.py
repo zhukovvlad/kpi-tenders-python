@@ -110,6 +110,8 @@ def main() -> None:
     except ValueError as exc:
         print(f"[ERROR] Validation error: {exc}", file=sys.stderr)
         sys.exit(1)
+    finally:
+        client.close()
 
     print("─" * 60)
     print(f"resolved_schema ({len(result['resolved_schema'])} keys):")

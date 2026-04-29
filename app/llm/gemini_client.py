@@ -52,6 +52,9 @@ class GeminiClient:
         if self._httpx_client is not None:
             self._httpx_client.close()
             self._httpx_client = None
+        if self._client is not None:
+            self._client.close()
+            self._client = None
 
     def generate(
         self,
